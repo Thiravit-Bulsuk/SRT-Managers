@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>SRT Manager — Merge, Fix Height, Map & Export</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#111217;color:#eee;margin:0;padding:20px}
+    .container{max-width:980px;margin:0 auto;background:#1b1c22;padding:18px;border-radius:8px}
+    h2{color:#00ffd1;margin:0 0 12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .col{flex:1;min-width:220px}
+    input[type=number],select{width:100%;padding:8px;border-radius:6px;border:1px solid #333;background:#0f1113;color:#fff}
+    #fileInput{
+      position:absolute;
+      left:-9999px;
+      width:1px;
+      height:1px;
+      opacity:0;
+      pointer-events:none;
+    }
+    .btn{background:#00ffd1;color:#071018;padding:10px 14px;border:none;border-radius:6px;cursor:pointer}
+    #map{height:480px;border-radius:6px;margin-top:12px}
+    .map-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+    .map-controls .btn{padding:8px 10px}
+    .time-slider{flex:1}
+    .card{background:#0f1113;padding:12px;border-radius:6px;margin-top:12px;border:1px solid #202127}
+    .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    label.k{background:#16161a;padding:6px 8px;border-radius:6px}
+    pre {white-space:pre-wrap; word-break:break-word; background:#070709;padding:8px;border-radius:6px}
+    /* Marker styles */
+    .drone-icon { width: 56px; height: 56px; display:block; background: transparent; border: none; }
+    .drone-dot { width: 24px; height: 24px; background: #ff8a1c; border-radius: 50%; box-shadow: 0 0 10px rgba(255,138,28,0.95); margin: 16px auto 0; display:block; }
+    .drone-arrow { width: 56px; height: 56px; display:block; transform-origin: 50% 50%; filter: drop-shadow(0 0 8px rgba(255,138,28,0.9)); }
+    .coord-badge {
+      background: rgba(10, 14, 18, 0.82);
+      color: #fff;
+      border: 1px solid rgba(255, 138, 28, 0.7);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>DJI SRT Manager — Merge · Height Fix · Map · Export</h2>
+
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label class="btn" id="uploadBtn">เลือก / ลากไฟล์ SRT</label>
+          <input id="fileInput" type="file" accept=".srt" multiple>
+          <div id="fileList" style="margin-top:8px;color:#7fffd4"></div>
+        </div>
+
+        <div style="width:240px">
+          <label>Merge policy</label>
+          <select id="mergePolicy">
+            <option value="concatenate">Concatenate (default)</option>
+            <option value="keep">Keep timestamps</option>
+            <option value="pad">Pad with gap</option>
+          </select>
+          <input type="number" id="gapMs" value="0" min="0" style="margin-top:8px" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="col">
+          <label>Scale (height multiplier)</label>
+          <input type="number" id="scale" value="10" step="0.1"/>
+        </div>
+        <div style="width:220px">
+          <label>Offset type</label>
+          <select id="offsetType">
+            <option value="auto">Auto (first height)</option>
+            <option value="manual">Manual</option>
+          </select>
+          <input type="number" id="manualOffset" value="0" step="0.1" style="margin-top:8px"/>
+        </div>
+        <div style="width:140px">
+          <label>&nbsp;</label>
+          <button id="processBtn" class="btn">Process</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="filterCard" class="card" style="display:none">
+      <h3 style="margin-top:0">Detected metadata keys</h3>
+      <div class="checkbox-group" id="keyContainer"></div>
+      <div style="margin-top:8px">
+        <button id="selectAll" class="btn">Select all</button>
+        <button id="deselectAll" class="btn" style="margin-left:8px">Deselect all</button>
+        <button id="downloadBtn" class="btn" style="margin-left:12px">Download SRT</button>
+      </div>
+      <div style="margin-top:12px">
+        <strong>Preview (first 5 blocks):</strong>
+        <pre id="previewBox"></pre>
+      </div>
+    </div>
+
+    <div id="mapCard" class="card" style="display:none">
+      <h3 style="margin-top:0">Map / Animation</h3>
+      <div id="map"></div>
+      <div class="map-controls">
+        <button id="rewindBtn" class="btn">⏪ Rewind</button>
+        <button id="playBtn" class="btn">Play</button>
+        <button id="pauseBtn" class="btn">Pause</button>
+        <button id="ffBtn" class="btn">⏩ Forward</button>
+        <button id="stopBtn" class="btn">⏹ Stop</button>
+        <span style="width:8px"></span>
+        <input id="timeSlider" type="range" class="time-slider" min="0" max="100" value="0">
+        <div style="min-width:120px;text-align:right">
+          <div id="timeLabel">00:00:00.000</div>
+        </div>
+      </div>
+    </div>
+
+    <p id="status" style="margin-top:12px;color:#7fffd4">Ready</p>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function () {
+      function parseTime(timeStr) {
+        if (!timeStr) return null;
+        const m = timeStr.match(/(\d{2}):(\d{2}):(\d{2})[.,](\d{3})/);
+        if (!m) return null;
+        return parseInt(m[1], 10) * 3600000 + parseInt(m[2], 10) * 60000 + parseInt(m[3], 10) * 1000 + parseInt(m[4], 10);
+      }
+
+      function formatTime(msTotal) {
+        let ms = Math.max(0, Math.round(msTotal));
+        const h = Math.floor(ms / 3600000); ms %= 3600000;
+        const min = Math.floor(ms / 60000); ms %= 60000;
+        const s = Math.floor(ms / 1000);
+        const msPart = ms % 1000;
+        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(msPart).padStart(3, '0')}`;
+      }
+
+      function parseSrtToBlocks(srtText) {
+        const normalized = (srtText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '').trim();
+        if (!normalized) return [];
+        const blocks = [];
+        const rawBlocks = normalized.split(/\n{2,}/);
+
+        for (const raw of rawBlocks) {
+          const lines = raw.split('\n').map(line => line.replace(/\uFEFF/g, '').trimEnd());
+          if (lines.length < 2) continue;
+
+          let id = null;
+          let timeLineIndex = 0;
+          if (/^\d+$/.test(lines[0].trim())) {
+            id = lines[0].trim();
+            timeLineIndex = 1;
+          }
+
+          const timeLine = lines[timeLineIndex];
+          const timeMatch = timeLine && timeLine.match(/(\d{2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3})/);
+          if (!timeMatch) continue;
+
+          const startMs = parseTime(timeMatch[1]);
+          const endMs = parseTime(timeMatch[2]);
+          if (startMs === null || endMs === null) continue;
+
+          const text = lines.slice(timeLineIndex + 1).join('\n').trim();
+          blocks.push({ id, startMs, endMs, rawText: text, metadata: null, renderText: text });
+        }
+        return blocks;
+      }
+
+      function blocksToSrt(blocks) {
+        const parts = [];
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          const text = b.renderText !== undefined ? b.renderText : b.rawText;
+          parts.push(`${i + 1}\n${formatTime(b.startMs)} --> ${formatTime(b.endMs)}\n${text}`);
+        }
+        return parts.join('\n\n') + '\n';
+      }
+
+      function mergeFileTexts(fileTexts, options) {
+        const allFiles = (fileTexts || []).slice();
+        if (options && options.ordering === 'name') {
+          allFiles.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        let cumulativeOffset = 0;
+        const merged = [];
+
+        for (const f of allFiles) {
+          const blocks = parseSrtToBlocks(f.text);
+          if (!blocks.length) continue;
+
+          const minStart = Math.min(...blocks.map(b => b.startMs));
+          const maxEnd = Math.max(...blocks.map(b => b.endMs));
+
+          if (options && options.policy === 'keep') {
+            for (const b of blocks) merged.push({ ...b });
+          } else {
+            const shift = cumulativeOffset - minStart;
+            for (const b of blocks) {
+              merged.push({
+                ...b,
+                startMs: b.startMs + shift,
+                endMs: b.endMs + shift,
+                renderText: b.renderText || b.rawText
+              });
+            }
+            cumulativeOffset += (maxEnd - minStart) + ((options && options.gapMs) || 0);
+          }
+        }
+
+        merged.sort((a, b) => a.startMs - b.startMs);
+        return merged;
+      }
+
+      const keyValueRegex = /(?:\[\s*|\b)([a-zA-Z][a-zA-Z0-9 ]*?)\s*:\s*([^\]\n\r,<>]+)/g;
+      const latLonRegex = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+
+      function extractMetadataFromText(text) {
+        const map = {};
+        let m;
+
+        keyValueRegex.lastIndex = 0;
+        while ((m = keyValueRegex.exec(text)) !== null) {
+          const rawKey = m[1].trim();
+          const key = rawKey.toLowerCase().replace(/\s+/g, "_");
+          let value = m[2].trim().replace(/[\[\]]/g, "").trim();
+
+          if (!value) continue;
+
+          const num = Number(value);
+          if (!Number.isNaN(num)) value = num;
+
+          map[key] = value;
+        }
+
+        const latlon = text.match(latLonRegex);
+        if (latlon) {
+          map.lat = parseFloat(latlon[1]);
+          map.lon = parseFloat(latlon[2]);
+        }
+
+        // normalize common latitude/longitude names into numeric lat/lon
+        if (map.latitude !== undefined && map.lat === undefined) {
+          const n = Number(map.latitude);
+          if (Number.isFinite(n)) map.lat = n;
+        }
+        if (map.longitude !== undefined && map.lon === undefined) {
+          const n = Number(map.longitude);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+        if (map.lng !== undefined && map.lon === undefined) {
+          const n = Number(map.lng);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+        if (map.lat !== undefined) {
+          const n = Number(map.lat);
+          if (Number.isFinite(n)) map.lat = n;
+        }
+        if (map.lon !== undefined) {
+          const n = Number(map.lon);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+
+        if (map.altitude !== undefined) map.height = map.altitude;
+        if (map.alt !== undefined) map.height = map.alt;
+        if (map.rel_alt !== undefined) map.height = map.rel_alt;
+
+        return map;
+      }
+
+      function renderTextFromMetadata(originalText, meta) {
+        const preserveLines = [];
+        const lines = originalText.split('\n').map(l => l.trim()).filter(Boolean);
+        // Remove lines or fragments that look like key:value or bracketed [key: value]
+        const keyFragmentRe = /(?:\[[^\]]*:[^\]]*\])|(?:[a-zA-Z][a-zA-Z0-9_ ]*:\s*[^,<>\]]+)/g;
+        for (let l of lines) {
+          // If the whole line is only key:value fragments, skip it entirely
+          const onlyKeyFragments = l.replace(keyFragmentRe, '').trim() === '';
+          if (onlyKeyFragments) continue;
+          // Otherwise remove embedded key fragments and keep the rest of the line
+          l = l.replace(keyFragmentRe, '').trim();
+          // clean leftover punctuation/commas from removed fragments
+          l = l.replace(/\s*,\s*/g, ', ').replace(/(^[\s,]+|[\s,]+$)/g, '');
+          if (l) preserveLines.push(l);
+        }
+
+        const kvLines = [];
+        const order = ['height', 'lat', 'lon', 'speed', 'heading', 'yaw'];
+        if (meta) {
+          for (const k of order) {
+            if (meta[k] !== undefined) kvLines.push(`${k}: ${meta[k]}`);
+          }
+          for (const k of Object.keys(meta)) {
+            if (!order.includes(k)) kvLines.push(`${k}: ${meta[k]}`);
+          }
+        }
+
+        return [...kvLines, ...preserveLines].join('\n');
+      }
+
+      function applyAltitudeCorrection(blocks, opts) {
+        const options = Object.assign({ scale: 1, baseOffset: null, auto: true }, opts || {});
+        if (options.auto && options.baseOffset === null) {
+          const firstWithHeight = blocks.find(b => b.metadata && b.metadata.height !== undefined);
+          options.baseOffset = firstWithHeight ? Number(firstWithHeight.metadata.height) || 0 : 0;
+        }
+
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          if (b.metadata.height !== undefined && b.metadata.height !== null) {
+            const raw = Number(b.metadata.height);
+            const corrected = ((raw - (options.baseOffset || 0)) * (options.scale || 1));
+            b.metadata.height = Number(corrected.toFixed(2));
+          }
+        }
+
+        for (const b of blocks) {
+          b.renderText = renderTextFromMetadata(b.rawText, b.metadata);
+        }
+
+        return blocks;
+      }
+
+      function filterMetadata(blocks, allowedKeys) {
+        const allowSet = new Set((allowedKeys || []).map(k => String(k).toLowerCase()));
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          const kept = {};
+          Object.keys(b.metadata).forEach(k => {
+            if (allowSet.has(String(k).toLowerCase())) kept[k] = b.metadata[k];
+          });
+          b.metadata = kept;
+          b.renderText = renderTextFromMetadata(b.rawText, b.metadata);
+        }
+        return blocks;
+      }
+
+      function extractGPSTrack(blocks) {
+        const track = [];
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          // accept several possible key names; metadata should already be normalized
+          const getNum = (obj, ...names) => {
+            for (const n of names) {
+              if (obj[n] !== undefined) {
+                const v = Number(obj[n]);
+                if (Number.isFinite(v)) return v;
+              }
+            }
+            return undefined;
+          };
+
+          const lat = getNum(b.metadata, 'lat', 'latitude', 'y');
+          const lon = getNum(b.metadata, 'lon', 'longitude', 'lng', 'x');
+          if (lat !== undefined && lon !== undefined) {
+            track.push({ tMs: b.startMs, lat: lat, lon: lon, extra: b.metadata });
+          }
+        }
+        track.sort((a, b) => a.tMs - b.tMs);
+        return track;
+      }
+
+      function createDroneIcon(heading) {
+        const html = (heading !== undefined && heading !== null)
+          ? '<svg class="drone-arrow" viewBox="-12 -12 24 24" xmlns="http://www.w3.org/2000/svg" style="transform: rotate(' + Number(heading) + 'deg);"><path d="M0,-10 L6,8 L0,3 L-6,8 Z" fill="#ff8a1c"/></svg>'
+          : '<div class="drone-dot"></div>';
+        return L.divIcon({
+          className: 'drone-icon',
+          html: html,
+          iconSize: [56, 56],
+          iconAnchor: [28, 28],
+          popupAnchor: [0, -28],
+          tooltipAnchor: [0, -28]
+        });
+      }
+
+      function createLeafletMap(containerId, options) {
+        const center = options && options.center ? options.center : [0, 0];
+          const map = L.map(containerId, { zoomControl: true }).setView(center, options && options.zoom ? options.zoom : 15);
+          // Use Esri World Imagery (satellite) tiles
+          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(map);
+          const marker = L.marker(center, {
+            icon: createDroneIcon(),
+            zIndexOffset: 1000
+          }).addTo(map);
+          marker.bindTooltip('', { permanent: true, direction: 'top', offset: [0, -18], className: 'coord-badge' });
+          const polyline = L.polyline([], { color: '#00ffcc', weight: 3 }).addTo(map);
+
+          // Make map container square to match width
+          const container = document.getElementById(containerId);
+          function resizeSquare() {
+            const w = Math.max(240, container.clientWidth);
+            container.style.height = w + 'px';
+            try { map.invalidateSize(); } catch (e) {}
+          }
+          resizeSquare();
+          window.addEventListener('resize', resizeSquare);
+
+              return { map, marker, poly: polyline };
+      }
+
+      function showTrackOnMap(mapObj, track) {
+        if (!mapObj || !track || !track.length) return;
+        const { map, marker, poly } = mapObj;
+        const latlngs = track.map(p => [p.lat, p.lon]);
+        try { if (poly && typeof poly.setLatLngs === 'function') poly.setLatLngs(latlngs); } catch (e) { console.warn('poly.setLatLngs failed', e); }
+        try { if (marker && typeof marker.setLatLng === 'function') marker.setLatLng(latlngs[0]); } catch (e) { console.warn('marker.setLatLng failed', e); }
+        try { if (map && poly && typeof poly.getBounds === 'function') map.fitBounds(poly.getBounds().pad(0.2)); } catch (e) { try { if (map && typeof map.setView === 'function') map.setView(latlngs[0], 15); } catch(e2){}}
+      }
+
+      function animateOnMap(mapObj, track, opts) {
+        // Returns a controller with play/pause/stop/seek/setSpeed
+        if (!track || track.length < 2) return {
+          play() {}, pause() {}, stop() {}, seekTo() {}, seekBy() {}, setSpeed() {}
+        };
+
+        const { marker } = mapObj;
+        const startTime = track[0].tMs;
+        const endTime = track[track.length - 1].tMs;
+        let virtualTime = startTime;
+        let playing = false;
+        let speed = (opts && opts.speed) || 1;
+        let rafId = null;
+        let lastTs = null;
+        let index = 0;
+
+        function clamp(v) { return Math.max(startTime, Math.min(endTime, v)); }
+
+        function updateMarkerAt(tMs) {
+          // advance index to just before tMs
+          while (index < track.length - 1 && track[index + 1].tMs <= tMs) index++;
+          while (index > 0 && track[index].tMs > tMs) index--;
+          const a = track[index];
+          const b = track[Math.min(index + 1, track.length - 1)];
+          const ratio = (b.tMs === a.tMs) ? 0 : ((tMs - a.tMs) / (b.tMs - a.tMs));
+          const lat = a.lat + (b.lat - a.lat) * ratio;
+          const lon = a.lon + (b.lon - a.lon) * ratio;
+          try { marker.setLatLng([lat, lon]); } catch (e) {}
+          // update marker visual: arrow if heading available, otherwise dot
+          try {
+            const extraMeta = (track[index] && track[index].extra) || {};
+            const h = (function () {
+              const names = ['heading','yaw','hdg','course','bearing'];
+              for (const n of names) {
+                if (extraMeta[n] !== undefined) {
+                  const v = Number(extraMeta[n]); if (Number.isFinite(v)) return v;
+                }
+              }
+              return null;
+            })();
+            if (marker && typeof marker.setIcon === 'function') {
+              marker.setIcon(createDroneIcon(h));
+            }
+
+            const rLat = (extraMeta.lat !== undefined) ? Number(extraMeta.lat) : lat;
+            const rLon = (extraMeta.lon !== undefined) ? Number(extraMeta.lon) : lon;
+            if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
+              if (marker && typeof marker.setLatLng === 'function') marker.setLatLng([rLat, rLon]);
+              if (marker && typeof marker.setTooltipContent === 'function') {
+                const content = 'Lat: ' + rLat.toFixed(6) + '<br>Lon: ' + rLon.toFixed(6);
+                marker.setTooltipContent(content);
+                if (!marker.isTooltipOpen()) marker.openTooltip();
+              }
+            }
+          } catch (e) { /* ignore DOM update errors */ }
+
+          if (opts && typeof opts.onTick === 'function') opts.onTick({ t: tMs, lat, lon, start: startTime, end: endTime });
+        }
+
+        function loop(ts) {
+          if (!playing) return;
+          if (lastTs === null) lastTs = ts;
+          const dt = ts - lastTs;
+          lastTs = ts;
+          virtualTime = clamp(virtualTime + dt * speed);
+          updateMarkerAt(virtualTime);
+          if (virtualTime >= endTime) { 
+            // ensure final tick reported
+            if (opts && typeof opts.onTick === 'function') try { opts.onTick({ t: endTime, lat: track[track.length-1].lat, lon: track[track.length-1].lon, start: startTime, end: endTime }); } catch(e){}
+            pause(); 
+          }
+          else { rafId = requestAnimationFrame(loop); }
+        }
+
+        function play() {
+          if (playing) return;
+          playing = true; lastTs = null;
+          rafId = requestAnimationFrame(loop);
+        }
+        function pause() { playing = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } lastTs = null; }
+        function stop() { pause(); virtualTime = startTime; index = 0; updateMarkerAt(virtualTime); }
+        function seekTo(tMs) { virtualTime = clamp(tMs); updateMarkerAt(virtualTime); }
+        function seekBy(delta) { seekTo(virtualTime + delta); }
+        function setSpeed(s) { speed = s; }
+
+        // initialize marker position
+        updateMarkerAt(virtualTime);
+
+        return { play, pause, stop, seekTo, seekBy, setSpeed };
+      }
+
+      // exportTrackToWebM removed — video export disabled per user request
+
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const fileList = document.getElementById('fileList');
+      const processBtn = document.getElementById('processBtn');
+      const mergePolicy = document.getElementById('mergePolicy');
+      const gapMs = document.getElementById('gapMs');
+      const scaleInput = document.getElementById('scale');
+      const offsetType = document.getElementById('offsetType');
+      const manualOffset = document.getElementById('manualOffset');
+      const keyContainer = document.getElementById('keyContainer');
+      const filterCard = document.getElementById('filterCard');
+      const previewBox = document.getElementById('previewBox');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const selectAll = document.getElementById('selectAll');
+      const deselectAll = document.getElementById('deselectAll');
+      const status = document.getElementById('status');
+      const mapCard = document.getElementById('mapCard');
+      const playBtn = document.getElementById('playBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+
+      let selectedFiles = [];
+      let mergedBlocks = [];
+      let gpsTrack = [];
+      let mapObj = null;
+      let animHandle = null;
+
+      uploadBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', function (e) {
+        selectedFiles = Array.from(e.target.files).map(f => ({ name: f.name, file: f }));
+        fileList.innerHTML = '<ul>' + selectedFiles.map(f => '<li>' + f.name + '</li>').join('') + '</ul>';
+      });
+
+      async function readAllFiles() {
+        const arr = [];
+        for (const sf of selectedFiles) {
+          const text = await sf.file.text();
+          arr.push({ name: sf.name, text });
+        }
+        return arr;
+      }
+
+      function updatePreview() {
+        const out = mergedBlocks.slice(0, 5).map((b, i) => {
+          const tl = `${formatTime(b.startMs)} --> ${formatTime(b.endMs)}`;
+          const txt = b.renderText || b.rawText;
+          return `${i + 1}\n${tl}\n${txt}`;
+        }).join('\n\n');
+        previewBox.innerText = out;
+      }
+
+      processBtn.addEventListener('click', async function () {
+        if (!selectedFiles.length) {
+          alert('โปรดเลือกไฟล์ .srt ก่อน');
+          return;
+        }
+
+        status.innerText = 'Processing...';
+        const files = await readAllFiles();
+        const policy = mergePolicy.value;
+        const opts = { ordering: 'name', policy: policy, gapMs: Number(gapMs.value) || 0 };
+        mergedBlocks = mergeFileTexts(files, opts);
+
+        const discoveredKeys = new Set();
+        for (const b of mergedBlocks) {
+          b.metadata = extractMetadataFromText(b.rawText);
+          if (b.metadata) {
+            Object.keys(b.metadata).forEach(k => discoveredKeys.add(String(k).toLowerCase()));
+          }
+        }
+
+        const scale = Number(scaleInput.value) || 1;
+        const auto = offsetType.value === 'auto';
+        const base = auto ? null : (Number(manualOffset.value) || 0);
+        applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
+
+        keyContainer.innerHTML = '';
+        discoveredKeys.forEach(k => {
+          const lab = document.createElement('label');
+          lab.className = 'k';
+          lab.innerHTML = `<input type="checkbox" value="${k}" checked> ${k}`;
+          keyContainer.appendChild(lab);
+        });
+
+        filterCard.style.display = 'block';
+        status.innerText = `Processed ${mergedBlocks.length} blocks.`;
+        updatePreview();
+
+        gpsTrack = extractGPSTrack(mergedBlocks);
+        if (gpsTrack.length > 0) {
+          mapCard.style.display = 'block';
+          if (!mapObj) mapObj = createLeafletMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+          showTrackOnMap(mapObj, gpsTrack);
+          // create animator
+          if (animHandle && animHandle.stop) animHandle.stop();
+          animHandle = animateOnMap(mapObj, gpsTrack, {
+            speed: 1,
+            onTick: function (s) {
+              // update slider and time label
+              const percent = ((s.t - s.start) / (s.end - s.start)) * 100;
+              const slider = document.getElementById('timeSlider');
+              const label = document.getElementById('timeLabel');
+              if (slider) slider.value = isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+              if (label) label.innerText = formatTime(s.t);
+              // also show current animation time in status
+              try { status.innerText = 'Playing: ' + formatTime(s.t); } catch (e) {}
+            }
+          });
+          // enable controls (play enabled, pause disabled initially)
+          try {
+            const p = document.getElementById('playBtn'); if (p) { p.disabled = false; p.innerText = 'Play'; }
+            const z = document.getElementById('pauseBtn'); if (z) { z.disabled = true; z.innerText = 'Pause'; }
+            const rs = document.getElementById('rewindBtn'); if (rs) rs.disabled = false;
+            const fsbtn = document.getElementById('ffBtn'); if (fsbtn) fsbtn.disabled = false;
+            const sb = document.getElementById('stopBtn'); if (sb) sb.disabled = false;
+            const slider = document.getElementById('timeSlider'); if (slider) { slider.disabled = false; slider.value = 0; }
+          } catch (e) { console.warn('enable controls failed', e); }
+        } else {
+          mapCard.style.display = 'none';
+        }
+      });
+
+      selectAll.addEventListener('click', function () {
+        document.querySelectorAll('#keyContainer input').forEach(cb => cb.checked = true);
+      });
+
+      deselectAll.addEventListener('click', function () {
+        document.querySelectorAll('#keyContainer input').forEach(cb => cb.checked = false);
+      });
+
+      downloadBtn.addEventListener('click', function () {
+        const checked = Array.from(document.querySelectorAll('#keyContainer input:checked')).map(cb => cb.value);
+        filterMetadata(mergedBlocks, checked);
+        const finalSrt = blocksToSrt(mergedBlocks);
+        const blob = new Blob([finalSrt], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        const name = selectedFiles[0] && selectedFiles[0].name ? selectedFiles[0].name.replace(/\.[^/.]+$/, '') : 'merged';
+        a.href = URL.createObjectURL(blob);
+        a.download = `${name}.SRT`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        status.innerText = `ดาวน์โหลด SRT เสร็จแล้ว: ${a.download}`;
+      });
+
+      playBtn.addEventListener('click', function () {
+        try {
+          console.log('play clicked, animHandle=', !!animHandle);
+          status.innerText = 'Starting animation...';
+          if (!animHandle) {
+            console.log('animHandle missing — gpsTrack length=', gpsTrack && gpsTrack.length, 'mapObj=', !!mapObj);
+            if (!gpsTrack || gpsTrack.length < 2) { status.innerText = 'No GPS track available'; return; }
+            // create map if missing
+            if (!mapObj) {
+              try {
+                mapObj = createLeafletMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+                showTrackOnMap(mapObj, gpsTrack);
+                console.log('mapObj created in play handler');
+              } catch (e) {
+                console.error('failed to create map in play', e);
+                // fallback: create a stub mapObj with no-op marker so animator can run without Leaflet
+                mapObj = { marker: { setLatLng: function () {} }, map: null };
+                console.log('mapObj fallback created (no-op marker)');
+              }
+            }
+            if (mapObj && gpsTrack && gpsTrack.length > 1) {
+              animHandle = animateOnMap(mapObj, gpsTrack, { speed: 1, onTick: function(s){
+                const slider = document.getElementById('timeSlider');
+                const label = document.getElementById('timeLabel');
+                if (slider) slider.value = isFinite(((s.t - s.start)/(s.end - s.start))*100) ? Math.max(0, Math.min(100, ((s.t - s.start)/(s.end - s.start))*100)) : 0;
+                if (label) label.innerText = formatTime(s.t);
+                try { status.innerText = 'Playing: ' + formatTime(s.t); } catch(e){}
+              } });
+              console.log('animHandle created in play handler=', !!animHandle);
+            }
+          }
+          if (!animHandle) { status.innerText = 'No animator available'; return; }
+          // ensure marker shows current position immediately
+          try { animHandle.seekTo(gpsTrack[0].tMs); } catch(e){}
+          if (typeof animHandle.play === 'function') animHandle.play();
+          playBtn.disabled = true;
+          pauseBtn.disabled = false;
+          playBtn.innerText = 'Playing';
+        } catch (e) { console.error('play handler error', e); status.innerText = 'Play failed'; }
+      });
+
+      pauseBtn.addEventListener('click', function () {
+        try {
+          console.log('pause clicked');
+          if (!animHandle) { status.innerText = 'No animator'; return; }
+          if (typeof animHandle.pause === 'function') animHandle.pause();
+          playBtn.disabled = false;
+          pauseBtn.disabled = true;
+          playBtn.innerText = 'Play';
+          status.innerText = 'Paused';
+        } catch (e) { console.error('pause handler error', e); status.innerText = 'Pause failed'; }
+      });
+
+      // rewind / forward / stop controls
+      const rewindBtn = document.getElementById('rewindBtn');
+      const ffBtn = document.getElementById('ffBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const timeSlider = document.getElementById('timeSlider');
+
+      if (rewindBtn) rewindBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(-5000); });
+      if (ffBtn) ffBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(5000); });
+      if (stopBtn) stopBtn.addEventListener('click', function () { if (animHandle) animHandle.stop(); });
+      if (timeSlider) timeSlider.addEventListener('input', function (e) {
+        if (!animHandle || !gpsTrack || gpsTrack.length < 2) return;
+        const pct = Number(e.target.value) / 100;
+        const start = gpsTrack[0].tMs;
+        const end = gpsTrack[gpsTrack.length - 1].tMs;
+        const t = start + pct * (end - start);
+        animHandle.seekTo(t);
+      });
+      
+    })();
+  </script>
+
+</body>
+</html>
