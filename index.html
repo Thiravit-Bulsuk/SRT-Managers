@@ -29,26 +29,6 @@
     .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
     label.k{background:#16161a;padding:6px 8px;border-radius:6px}
     pre {white-space:pre-wrap; word-break:break-word; background:#070709;padding:8px;border-radius:6px}
-    /* Mobile / touch improvements */
-    @media (max-width: 640px) {
-      body{padding:12px}
-      .container{padding:12px;border-radius:6px}
-      h2{font-size:18px}
-      .row{flex-direction:column;align-items:stretch}
-      .map-controls{flex-direction:column;align-items:stretch}
-      .map-controls .btn{width:100%;padding:12px;font-size:16px}
-      .time-slider{width:100%;margin-top:6px}
-      #map{height:60vh}
-      .card{padding:10px}
-      .btn{padding:12px 14px;font-size:15px}
-      input[type=number], select{padding:10px;font-size:15px}
-      #fileList ul{padding-left:18px;margin:6px 0}
-      .checkbox-group{gap:6px}
-    }
-
-    /* Larger slider/thumb for touch devices */
-    input[type=range] { height: 28px; }
-    input[type=range]::-webkit-slider-thumb { width: 20px; height: 20px; }
     /* Marker styles */
     .drone-icon { width: 56px; height: 56px; display:block; background: transparent; border: none; }
     .drone-dot { width: 24px; height: 24px; background: #ff8a1c; border-radius: 50%; box-shadow: 0 0 10px rgba(255,138,28,0.95); margin: 16px auto 0; display:block; }
