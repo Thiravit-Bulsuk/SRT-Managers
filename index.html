@@ -21,7 +21,15 @@
       pointer-events:none;
     }
     .btn{background:#00ffd1;color:#071018;padding:10px 14px;border:none;border-radius:6px;cursor:pointer}
-    #map{height:480px;border-radius:6px;margin-top:12px}
+    #map{
+      height: auto;
+      width: 100%;
+      min-height: 240px;
+      max-height: calc(100vh - 180px);
+      border-radius: 6px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
     .map-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
     .map-controls .btn{padding:8px 10px}
     .time-slider{flex:1}
@@ -393,15 +401,22 @@
           marker.bindTooltip('', { permanent: true, direction: 'top', offset: [0, -18], className: 'coord-badge' });
           const polyline = L.polyline([], { color: '#00ffcc', weight: 3 }).addTo(map);
 
-          // Make map container square to match width
+          // Responsive map sizing: cap height to viewport and container width
           const container = document.getElementById(containerId);
           function resizeSquare() {
-            const w = Math.max(240, container.clientWidth);
-            container.style.height = w + 'px';
-            try { map.invalidateSize(); } catch (e) {}
+            try {
+              const containerWidth = Math.max(240, container.clientWidth || 0);
+              const maxAllowed = Math.max(200, Math.floor(window.innerHeight * 0.72));
+              const h = Math.min(containerWidth, maxAllowed);
+              container.style.height = h + 'px';
+              map.invalidateSize();
+            } catch (e) {
+              try { map.invalidateSize(); } catch (_) {}
+            }
           }
           resizeSquare();
           window.addEventListener('resize', resizeSquare);
+          window.addEventListener('orientationchange', function(){ setTimeout(resizeSquare, 200); });
 
               return { map, marker, poly: polyline };
       }
