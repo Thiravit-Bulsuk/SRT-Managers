@@ -31,7 +31,10 @@
       overflow: hidden;
     }
     .map-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
-    .map-controls .btn{padding:8px 10px}
+    .map-controls .btn{width:38px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1;background:#171a1f;color:#00ffd1;border:1px solid #2b333b}
+    .map-controls .btn:hover{background:#00ffd1;color:#071018;border-color:#00ffd1}
+    .map-controls .btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+    .map-controls .btn:disabled{opacity:.4;cursor:not-allowed}
     .time-slider{flex:1}
     .card{background:#0f1113;padding:12px;border-radius:6px;margin-top:12px;border:1px solid #202127}
     .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -116,11 +119,11 @@
       <h3 style="margin-top:0">Map / Animation</h3>
       <div id="map"></div>
       <div class="map-controls">
-        <button id="rewindBtn" class="btn">⏪ Rewind</button>
-        <button id="playBtn" class="btn">Play</button>
-        <button id="pauseBtn" class="btn">Pause</button>
-        <button id="ffBtn" class="btn">⏩ Forward</button>
-        <button id="stopBtn" class="btn">⏹ Stop</button>
+        <button id="rewindBtn" class="btn" title="Rewind 5 seconds" aria-label="Rewind 5 seconds">⏪</button>
+        <button id="playBtn" class="btn" title="Play" aria-label="Play">▶</button>
+        <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause">⏸</button>
+        <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds">⏩</button>
+        <button id="stopBtn" class="btn" title="Stop" aria-label="Stop">⏹</button>
         <span style="width:8px"></span>
         <input id="timeSlider" type="range" class="time-slider" min="0" max="100" value="0">
         <div style="min-width:120px;text-align:right">
@@ -814,8 +817,8 @@
               }
             });
             try {
-              const p = document.getElementById('playBtn'); if (p) { p.disabled = false; p.innerText = 'Play'; }
-              const z = document.getElementById('pauseBtn'); if (z) { z.disabled = true; z.innerText = 'Pause'; }
+              const p = document.getElementById('playBtn'); if (p) { p.disabled = false; p.innerText = '▶'; }
+              const z = document.getElementById('pauseBtn'); if (z) { z.disabled = true; z.innerText = '⏸'; }
               const rs = document.getElementById('rewindBtn'); if (rs) rs.disabled = false;
               const fsbtn = document.getElementById('ffBtn'); if (fsbtn) fsbtn.disabled = false;
               const sb = document.getElementById('stopBtn'); if (sb) sb.disabled = false;
@@ -903,7 +906,7 @@
           if (typeof animHandle.play === 'function') animHandle.play();
           playBtn.disabled = true;
           pauseBtn.disabled = false;
-          playBtn.innerText = 'Playing';
+          playBtn.innerText = '▶';
         } catch (e) { console.error('play handler error', e); status.innerText = 'Play failed'; }
       });
 
@@ -914,7 +917,7 @@
           if (typeof animHandle.pause === 'function') animHandle.pause();
           playBtn.disabled = false;
           pauseBtn.disabled = true;
-          playBtn.innerText = 'Play';
+          playBtn.innerText = '▶';
           status.innerText = 'Paused';
         } catch (e) { console.error('pause handler error', e); status.innerText = 'Pause failed'; }
       });
