@@ -25,25 +25,48 @@ function normalizePoint(raw) {
 function extractPointsFromPayload(payload) {
   if (!payload) return [];
 
-  const frames = payload.info?.frameTimeStates;
+  const frames = payload.info?.frameTimeStates || payload.info?.frame_time_states;
   if (Array.isArray(frames)) {
     return frames.map((frame, index) => {
-      const state = frame.flightControllerState || {};
-      const location = state.aircraftLocation || {};
-      const velocity = state.velocity || {};
-      const attitude = state.attitude || {};
+      let state = frame.flightControllerState || frame.flight_controller_state || {};
+      let location = state.aircraftLocation || state.aircraft_location || {};
+      let velocity = state.velocity || {};
+      let attitude = state.attitude || {};
+
+      if (location.latitude === undefined || location.longitude === undefined) {
+        const findLocation = (value) => {
+          if (!value || typeof value !== 'object') return null;
+          const candidate = value.aircraftLocation || value.aircraft_location || value;
+          if ((candidate.latitude !== undefined && candidate.longitude !== undefined) ||
+              (candidate.lat !== undefined && candidate.lon !== undefined)) {
+            return { holder: value, location: candidate };
+          }
+          for (const child of Object.values(value)) {
+            const found = findLocation(child);
+            if (found) return found;
+          }
+          return null;
+        };
+        const holder = findLocation(frame);
+        if (holder) {
+          state = holder.holder;
+          location = holder.location;
+          velocity = state.velocity || {};
+          attitude = state.attitude || {};
+        }
+      }
       const speed = Math.sqrt(
-        Number(velocity.velocityX || 0) ** 2 +
-        Number(velocity.velocityY || 0) ** 2
+        Number(velocity.velocityX ?? velocity.velocity_x ?? 0) ** 2 +
+        Number(velocity.velocityY ?? velocity.velocity_y ?? 0) ** 2
       );
 
       return normalizePoint({
         tMs: index * 100,
-        lat: location.latitude,
-        lon: location.longitude,
-        alt: state.altitude,
+        lat: location.latitude ?? location.lat,
+        lon: location.longitude ?? location.lon,
+        alt: state.altitude ?? state.altitude_m,
         speed,
-        heading: attitude.yaw,
+        heading: attitude.yaw ?? attitude.heading,
       });
     }).filter(Boolean);
   }
@@ -97,6 +120,33 @@ function parseStructuredOutput(stdoutText) {
   }
 
   const points = [];
+  const coordinatePattern = /"(?:aircraftLocation|aircraft_location)"\s*:\s*\{[^{}]*?"latitude"\s*:\s*(-?\d+(?:\.\d+)?)[^{}]*?"longitude"\s*:\s*(-?\d+(?:\.\d+)?)/g;
+  let coordinateMatch;
+  while ((coordinateMatch = coordinatePattern.exec(text)) !== null) {
+    points.push({
+      tMs: points.length * 100,
+      lat: Number(coordinateMatch[1]),
+      lon: Number(coordinateMatch[2]),
+      alt: 0,
+      speed: 0,
+      heading: 0,
+    });
+  }
+  if (points.length > 0) return { points };
+
+  const genericCoordinatePattern = /"latitude"\s*:\s*(-?\d+(?:\.\d+)?)[\s\S]{0,300}?"longitude"\s*:\s*(-?\d+(?:\.\d+)?)/g;
+  while ((coordinateMatch = genericCoordinatePattern.exec(text)) !== null) {
+    points.push({
+      tMs: points.length * 100,
+      lat: Number(coordinateMatch[1]),
+      lon: Number(coordinateMatch[2]),
+      alt: 0,
+      speed: 0,
+      heading: 0,
+    });
+  }
+  if (points.length > 0) return { points };
+
   const latLonPattern = /lat(?:itude)?\s*[:=]\s*(-?\d+(?:\.\d+)?)[^\n\r]*\n?[^\n\r]*lon(?:gitude)?\s*[:=]\s*(-?\d+(?:\.\d+)?)/gi;
   let match;
   while ((match = latLonPattern.exec(text)) !== null) {
@@ -180,11 +230,11 @@ function buildParserArgs(filePath, appKey) {
   return args;
 }
 
-function runCommand(command, args) {
+function runCommand(command, args, env = process.env) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args || [], {
       shell: false,
-      env: process.env,
+      env,
     });
 
     let stdout = '';
@@ -230,7 +280,10 @@ async function runDjiParser(filePath, appKey) {
     throw new Error('Unable to construct DJI parser arguments. Please set DJI_PARSER_COMMAND or DJI_PARSER_ARGS.');
   }
 
-  const { stdout, stderr } = await runCommand(parserCommand, args);
+  const { stdout, stderr } = await runCommand(parserCommand, args, {
+    ...process.env,
+    SDK_KEY: appKey,
+  });
   const structured = parseStructuredOutput(stdout || stderr || '');
   if (!structured || !structured.points || structured.points.length === 0) {
     throw new Error(
