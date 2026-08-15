@@ -35,7 +35,7 @@
     .map-controls .btn:hover{background:#00ffd1;color:#071018;border-color:#00ffd1}
     .map-controls .btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
     .map-controls .btn:disabled{opacity:.4;cursor:not-allowed}
-    .map-controls #rewindBtn,.map-controls #ffBtn{background:#00ffd1;color:#071018;border-color:#00ffd1}
+    .map-controls #rewindBtn,.map-controls #ffBtn{background:#00ffd1;color:#071018;border-color:#00ffd1;font-size:21px;font-weight:700;letter-spacing:0}
     .map-controls #rewindBtn:hover,.map-controls #ffBtn:hover{background:#7fffe8;border-color:#7fffe8}
     .time-slider{flex:1}
     .card{background:#0f1113;padding:12px;border-radius:6px;margin-top:12px;border:1px solid #202127}
@@ -121,10 +121,10 @@
       <h3 style="margin-top:0">Map / Animation</h3>
       <div id="map"></div>
       <div class="map-controls">
-        <button id="rewindBtn" class="btn" title="Rewind 5 seconds" aria-label="Rewind 5 seconds">⏪</button>
+        <button id="rewindBtn" class="btn" title="Rewind 5 seconds" aria-label="Rewind 5 seconds">‹‹</button>
         <button id="playBtn" class="btn" title="Play" aria-label="Play">▶</button>
         <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause">⏸</button>
-        <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds">⏩</button>
+        <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds">››</button>
         <button id="stopBtn" class="btn" title="Stop" aria-label="Stop">⏹</button>
         <span style="width:8px"></span>
         <input id="timeSlider" type="range" class="time-slider" min="0" max="100" value="0">
