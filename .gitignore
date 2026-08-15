@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Environment files
+.env
+server/.env
+
+# Local temp/uploads
+/tmp/
+server/tmp/
+server/tmp/uploads/
+tmp/
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
