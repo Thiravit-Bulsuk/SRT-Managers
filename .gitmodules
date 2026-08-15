@@ -1,0 +1,3 @@
+[submodule "FlightRecordParsingLib"]
+	path = FlightRecordParsingLib
+	url = https://github.com/dji-sdk/FlightRecordParsingLib.git
