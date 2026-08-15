@@ -31,12 +31,11 @@
       overflow: hidden;
     }
     .map-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
-    .map-controls .btn{width:38px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1;background:#171a1f;color:#00ffd1;border:1px solid #2b333b}
-    .map-controls .btn:hover{background:#00ffd1;color:#071018;border-color:#00ffd1}
+    .map-controls .btn{width:38px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1;background:#00ffd1;color:#071018;border:1px solid #00ffd1}
+    .map-controls .btn:hover{background:#7fffe8;color:#071018;border-color:#7fffe8}
     .map-controls .btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
     .map-controls .btn:disabled{opacity:.4;cursor:not-allowed}
-    .map-controls #rewindBtn,.map-controls #ffBtn{background:#00ffd1;color:#071018;border-color:#00ffd1;font-size:21px;font-weight:700;letter-spacing:0}
-    .map-controls #rewindBtn:hover,.map-controls #ffBtn:hover{background:#7fffe8;border-color:#7fffe8}
+    .map-controls #rewindBtn,.map-controls #ffBtn{font-size:21px;font-weight:700;letter-spacing:0}
     .time-slider{flex:1}
     .card{background:#0f1113;padding:12px;border-radius:6px;margin-top:12px;border:1px solid #202127}
     .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -56,6 +55,24 @@
       line-height: 1.4;
       white-space: nowrap;
       box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+    }
+    @media (max-width:600px){
+      body{padding:10px}
+      .container{padding:12px;border-radius:6px}
+      h2{font-size:20px;line-height:1.3}
+      .card{padding:10px}
+      .row{gap:10px}
+      .row > .col,.row > div[style*="width"]{width:100% !important;min-width:0;flex-basis:100%}
+      #uploadBtn{display:block;text-align:center;width:100%;box-sizing:border-box}
+      #fileList{overflow-wrap:anywhere}
+      #processBtn{width:100%;min-height:40px}
+      #filterCard .btn{margin:4px 4px 0 0 !important}
+      .map-controls{display:grid;grid-template-columns:repeat(5,38px);gap:6px}
+      .map-controls > span{display:none}
+      .map-controls .time-slider{grid-column:1 / -1;width:100%;min-width:0;margin-top:4px}
+      .map-controls > div:last-child{grid-column:1 / -1;min-width:0 !important;text-align:left !important}
+      #map{min-height:220px;max-height:calc(100vh - 220px)}
+      .coord-badge{font-size:11px}
     }
   </style>
 </head>
