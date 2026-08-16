@@ -99,7 +99,7 @@
     <div class="card">
       <div class="row">
         <div class="col">
-          <label class="btn" id="uploadBtn">เลือก / ลากไฟล์ SRT หรือ DJI .txt</label>
+          <label class="btn" id="uploadBtn">เลือกไฟล์ SRT หรือ DJI .txt</label>
           <input id="fileInput" type="file" accept=".srt,.txt,text/plain" multiple>
           <div id="fileList" style="margin-top:8px;color:#7fffd4"></div>
         </div>
@@ -653,9 +653,9 @@
 
       function createLeafletMap(containerId, options) {
         const center = options && options.center ? options.center : [0, 0];
-          const map = L.map(containerId, { zoomControl: true }).setView(center, options && options.zoom ? options.zoom : 15);
+          const map = L.map(containerId, { zoomControl: true, maxZoom: 19 }).setView(center, options && options.zoom ? Math.min(options.zoom, 19) : 15);
           // Use Esri World Imagery (satellite) tiles
-          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(map);
+          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(map);
           const marker = L.marker(center, {
             icon: createDroneIcon(),
             zIndexOffset: 1000
