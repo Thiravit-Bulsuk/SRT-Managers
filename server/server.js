@@ -13,7 +13,7 @@ const upload = multer({
 });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use((req, res, next) => {
   const allowedOrigin = process.env.FRONTEND_ORIGIN || '*';
   res.header('Access-Control-Allow-Origin', allowedOrigin);
