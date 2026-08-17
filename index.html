@@ -847,7 +847,7 @@
         const form = new FormData();
         form.append('file', file);
 
-        const apiBaseUrl = 'http://localhost:8080';
+        const apiBaseUrl = 'https://dji-rust-parser-334697705514.asia-southeast1.run.app';
         const response = await fetch(`${apiBaseUrl}/api/flight-record/parse`, {
           method: 'POST',
           body: form
