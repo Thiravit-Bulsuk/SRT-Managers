@@ -249,23 +249,13 @@
         const extraLines = lines.filter(line => !coreLines.has(line));
 
         const pieces = [];
-        if (coordinateLine || heightLine) {
-          const left = coordinateLine || '';
-          const right = heightLine || '';
-          if (left && right) {
-            const padLength = Math.max(12, 72 - left.length);
-            pieces.push(`${left}${' '.repeat(padLength)}${right}`);
-          } else if (left) {
-            pieces.push(left);
-          } else if (right) {
-            pieces.push(right);
-          }
-        }
+        if (coordinateLine) pieces.push(coordinateLine);
         if (dateLine) pieces.push(dateLine);
         pieces.push(...extraLines);
+        if (heightLine) pieces.push(heightLine);
 
-        if (pieces.length) return pieces.join('\n');
-        return lines.join('\n');
+        if (pieces.length) return pieces.join(' | ');
+        return lines.join(' | ');
       }
 
       function blocksToSrt(blocks) {
@@ -324,12 +314,23 @@
 
           const start = assTime(b.startMs);
           const end = assTime(b.endMs);
+          const extraLines = [];
+
           for (const line of lines) {
-            let style = 'Default';
-            if (/^(Lat|Longitude|Longitude\s*:|Latitude|Lon)/i.test(line) || /\|\s*Lon:/i.test(line)) style = 'Coordinate';
-            else if (/^Height\b|^Alt\b/i.test(line)) style = 'Height';
-            else if (/^Date\b|^Time\b|Date\/Time/i.test(line)) style = 'DateTime';
-            events.push(`Dialogue: 0,${start},${end},${style},,0,0,0,,${assText(line)}`);
+            if (/^(Lat|Longitude|Longitude\s*:|Latitude|Lon)/i.test(line) || /\|\s*Lon:/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},Coordinate,,0,0,0,,${assText(line)}`);
+            } else if (/^Height\b|^Alt\b/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},Height,,0,0,0,,${assText(line)}`);
+            } else if (/^Date\b|^Time\b|Date\/Time/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},DateTime,,0,0,0,,${assText(line)}`);
+            } else {
+              extraLines.push(line);
+            }
+          }
+
+          if (extraLines.length) {
+            // Join lines with ASS newline escape sequence
+            events.push(`Dialogue: 0,${start},${end},Extra,,0,0,0,,${assText(extraLines.join('\n'))}`);
           }
         }
 
@@ -548,10 +549,12 @@
         const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'index'];
         for (const key of orderedKeys) {
           if (m[key] === undefined || m[key] === null || m[key] === '') continue;
-          const value = Number(m[key]);
+          let value = Number(m[key]);
+          if (key === 'speed') value *= 3.6; // Convert m/s from DJI to km/h
           const text = Number.isFinite(value) ? value.toFixed(value % 1 === 0 ? 0 : 2) : String(m[key]);
           const label = key === 'gpsnum' ? 'GPS Num' : key.charAt(0).toUpperCase() + key.slice(1);
-          lines.push(`${label}: ${text}`);
+          const unit = key === 'speed' ? ' km/h' : '';
+          lines.push(`${label}: ${text}${unit}`);
         }
 
         const extraKeys = Object.keys(m)
@@ -844,7 +847,7 @@
         const form = new FormData();
         form.append('file', file);
 
-        const apiBaseUrl = 'https://dji-rust-parser-334697705514.asia-southeast1.run.app';
+        const apiBaseUrl = 'http://localhost:8080';
         const response = await fetch(`${apiBaseUrl}/api/flight-record/parse`, {
           method: 'POST',
           body: form

@@ -74,7 +74,31 @@ fn parse_parser(parser: DJILog, keychains: Option<Vec<Vec<KeychainFeaturePoint>>
     let frames = parser.frames(keychains).map_err(internal)?;
     let points: Vec<_> = frames.iter().enumerate().filter_map(|(index, frame)| {
         if !frame.osd.is_gpd_used || !frame.osd.latitude.is_finite() || !frame.osd.longitude.is_finite() { return None; }
-        Some(json!({"tMs": (frame.osd.fly_time * 1000.0) as i64, "lat": frame.osd.latitude, "lon": frame.osd.longitude, "alt": frame.osd.altitude, "speed": (frame.osd.x_speed.powi(2) + frame.osd.y_speed.powi(2)).sqrt(), "heading": frame.osd.yaw, "index": index}))
+        
+        // Calculate common attributes
+        let speed = (frame.osd.x_speed.powi(2) + frame.osd.y_speed.powi(2)).sqrt();
+        let t_ms = (frame.osd.fly_time * 1000.0) as i64;
+        
+        Some(json!({
+            "tMs": t_ms, 
+            "lat": frame.osd.latitude, 
+            "lon": frame.osd.longitude, 
+            "alt": frame.osd.altitude, 
+            "speed": speed, 
+            "heading": frame.osd.yaw,
+            "pitch": frame.osd.pitch,
+            "roll": frame.osd.roll,
+            "battery": frame.battery.charge_level,
+            "distance": frame.osd.fly_time, // Placeholder, usually computed later or if available in OSD
+            "gpsnum": frame.osd.gps_num,
+            "signal": frame.rc.downlink_signal,
+            "x_speed": frame.osd.x_speed,
+            "y_speed": frame.osd.y_speed,
+            "z_speed": frame.osd.z_speed,
+            "flight_time": frame.osd.fly_time,
+            "flight_mode": frame.osd.flyc_state,
+            "index": index
+        }))
     }).collect();
     Ok(json!({"ok": true, "version": parser.version, "frameCount": frames.len(), "pointCount": points.len(), "points": points}))
 }
