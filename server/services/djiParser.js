@@ -12,7 +12,8 @@ function normalizePoint(raw) {
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-  return {
+  const merged = {
+    ...raw,
     tMs: Number.isFinite(tMs) ? tMs : 0,
     lat,
     lon,
@@ -20,6 +21,10 @@ function normalizePoint(raw) {
     speed: Number.isFinite(speed) ? speed : 0,
     heading: Number.isFinite(heading) ? heading : 0,
   };
+
+  return Object.fromEntries(
+    Object.entries(merged).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  );
 }
 
 function extractPointsFromPayload(payload) {
@@ -60,14 +65,22 @@ function extractPointsFromPayload(payload) {
         Number(velocity.velocityY ?? velocity.velocity_y ?? 0) ** 2
       );
 
-      return normalizePoint({
+      const raw = {
+        ...frame,
+        ...state,
+        ...location,
+        ...velocity,
+        ...attitude,
         tMs: index * 100,
         lat: location.latitude ?? location.lat,
         lon: location.longitude ?? location.lon,
         alt: state.altitude ?? state.altitude_m,
         speed,
         heading: attitude.yaw ?? attitude.heading,
-      });
+        index,
+      };
+
+      return normalizePoint(raw);
     }).filter(Boolean);
   }
 

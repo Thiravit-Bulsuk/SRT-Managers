@@ -116,7 +116,7 @@
       </div>
 
       <div class="row" style="margin-top:12px">
-        <div class="col">
+        <div class="col" id="scaleControl" style="display:block">
           <label>Scale (height multiplier)</label>
           <input type="number" id="scale" value="10" step="0.1"/>
         </div>
@@ -231,51 +231,51 @@
         return blocks;
       }
 
+      function splitRenderLines(text) {
+        return String(text || '')
+          .replace(/<\/?font\b[^>]*>/gi, '')
+          .replace(/\r/g, '')
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean);
+      }
+
+      function buildSrtCueText(block) {
+        const lines = splitRenderLines(block.renderText !== undefined ? block.renderText : block.rawText);
+        const coordinateLine = lines.find(line => /^(Lat:|Longitude:|Latitude:|Lon:)/i.test(line) || /\|\s*Lon:/i.test(line));
+        const heightLine = lines.find(line => /^(Height:|Alt:)/i.test(line));
+        const dateLine = lines.find(line => /^Date\/Time:/i.test(line) || /^Date:/i.test(line) || /^Time:/i.test(line));
+        const coreLines = new Set([coordinateLine, heightLine, dateLine].filter(Boolean));
+        const extraLines = lines.filter(line => !coreLines.has(line));
+
+        const pieces = [];
+        if (coordinateLine || heightLine) {
+          const left = coordinateLine || '';
+          const right = heightLine || '';
+          if (left && right) {
+            const padLength = Math.max(12, 72 - left.length);
+            pieces.push(`${left}${' '.repeat(padLength)}${right}`);
+          } else if (left) {
+            pieces.push(left);
+          } else if (right) {
+            pieces.push(right);
+          }
+        }
+        if (dateLine) pieces.push(dateLine);
+        pieces.push(...extraLines);
+
+        if (pieces.length) return pieces.join('\n');
+        return lines.join('\n');
+      }
+
       function blocksToSrt(blocks) {
         const parts = [];
         let cueId = 1;
         for (let i = 0; i < blocks.length; i++) {
           const b = blocks[i];
-          const text = b.renderText !== undefined ? b.renderText : b.rawText;
-          const meta = b.metadata || {};
-          const coordinateLat = meta.lat ?? meta.latitude;
-          const coordinateLon = meta.lon ?? meta.longitude;
-          const hasCoordinates = coordinateLat !== undefined && coordinateLon !== undefined;
-          const hasHeight = meta.height !== undefined && meta.height !== null && meta.height !== '';
-          const dateTimeKeys = ['date', 'time', 'datetime', 'date_time', 'timestamp'];
-          const dateTimeValues = dateTimeKeys
-            .filter(key => meta[key] !== undefined && meta[key] !== null && meta[key] !== '')
-            .map(key => `${key === 'datetime' || key === 'date_time' || key === 'timestamp' ? 'Date/Time' : key[0].toUpperCase() + key.slice(1)}: ${meta[key]}`);
-          const inlineDateTime = text.match(/\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,3})?\b/);
-          const dateTimeText = dateTimeValues.length > 0
-            ? dateTimeValues.join(' | ')
-            : (inlineDateTime ? `Date/Time: ${inlineDateTime[0]}` : '');
-          const hasDateTime = dateTimeText.length > 0;
-          const positionLines = new Set([
-            'lat:', 'lon:', 'latitude:', 'longitude:', 'height:', 'altitude:',
-            'date:', 'time:', 'datetime:', 'date_time:', 'timestamp:'
-          ]);
-          const remainingText = text.split('\n')
-            .map(line => line.replace(/<\/?font\b[^>]*>/gi, '').replace(/\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,3})?\b/g, '').trim())
-            .filter(line => line && !positionLines.has(line.toLowerCase().split(/\s+/)[0]))
-            .join('\n')
-            .trim();
-
-          const outputLines = [];
-          if (remainingText) outputLines.push(remainingText);
-          if (hasCoordinates) {
-            outputLines.push(`{\\an1}Lat: ${Number(coordinateLat).toFixed(6)} | Lon: ${Number(coordinateLon).toFixed(6)}`);
-          }
-          if (hasHeight) {
-            outputLines.push(`{\\an3}Height: ${Number(meta.height).toFixed(2)}`);
-          }
-          if (meta.altitude !== undefined && meta.altitude !== null && meta.altitude !== '') {
-            outputLines.push(`Altitude: ${(Number(meta.altitude) * 10).toFixed(3)}`);
-          }
-          if (hasDateTime) outputLines.push(`{\\an7}${dateTimeText}`);
-          if (!outputLines.length) outputLines.push(text);
-
-          parts.push(`${cueId++}\n${formatTime(b.startMs)} --> ${formatTime(b.endMs)}\n${outputLines.join('\n')}`);
+          const text = buildSrtCueText(b);
+          if (!text || !text.trim()) continue;
+          parts.push(`${cueId++}\n${formatTime(b.startMs)} --> ${formatTime(b.endMs)}\n${text}`);
         }
         return parts.join('\n\n') + '\n';
       }
@@ -319,37 +319,18 @@
         const events = [];
 
         for (const b of blocks) {
-          const text = b.renderText !== undefined ? b.renderText : b.rawText;
-          const meta = b.metadata || {};
-          const lat = meta.lat ?? meta.latitude;
-          const lon = meta.lon ?? meta.longitude;
-          const dateTimeKeys = ['date', 'time', 'datetime', 'date_time', 'timestamp'];
-          const dateTimeValues = dateTimeKeys
-            .filter(key => meta[key] !== undefined && meta[key] !== null && meta[key] !== '')
-            .map(key => `${key === 'datetime' || key === 'date_time' || key === 'timestamp' ? 'Date/Time' : key[0].toUpperCase() + key.slice(1)}: ${meta[key]}`);
-          const inlineDateTime = text.match(/\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,3})?\b/);
-          const dateTime = dateTimeValues.length ? dateTimeValues.join(' | ') : (inlineDateTime ? `Date/Time: ${inlineDateTime[0]}` : '');
-          const reservedKeys = new Set(['lat', 'lon', 'latitude', 'longitude', 'lng', 'height', 'altitude', 'date', 'time', 'datetime', 'date_time', 'timestamp']);
-          const extraValues = Object.keys(meta)
-            .filter(key => !reservedKeys.has(key.toLowerCase()) && meta[key] !== undefined && meta[key] !== null && meta[key] !== '')
-            .map(key => `${key}: ${meta[key]}`);
-          const metadataKeys = new Set(Object.keys(meta).map(key => key.toLowerCase()));
-          const remaining = text.split('\n')
-            .map(line => line.replace(/<\/?font\b[^>]*>/gi, '').replace(/\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,3})?\b/g, '').trim())
-            .filter(line => {
-              if (!line || /^(lat|lon|latitude|longitude|height|date|time|datetime|date_time|timestamp):/i.test(line)) return false;
-              const keyMatch = line.match(/^([a-zA-Z][a-zA-Z0-9_ ]*):/);
-              return !keyMatch || !metadataKeys.has(keyMatch[1].trim().toLowerCase().replace(/\s+/g, '_'));
-            })
-            .join('\n');
+          const lines = splitRenderLines(b.renderText !== undefined ? b.renderText : b.rawText);
+          if (!lines.length) continue;
+
           const start = assTime(b.startMs);
           const end = assTime(b.endMs);
-          if (remaining) events.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${assText(remaining)}`);
-          if (lat !== undefined && lon !== undefined) events.push(`Dialogue: 0,${start},${end},Coordinate,,0,0,0,,Lat: ${Number(lat).toFixed(6)} | Lon: ${Number(lon).toFixed(6)}`);
-          if (meta.height !== undefined && meta.height !== null && meta.height !== '') events.push(`Dialogue: 0,${start},${end},Height,,0,0,0,,Height: ${Number(meta.height).toFixed(2)}`);
-          if (meta.altitude !== undefined && meta.altitude !== null && meta.altitude !== '') events.push(`Dialogue: 0,${start},${end},Altitude,,0,0,0,,Altitude: ${(Number(meta.altitude) * 10).toFixed(3)}`);
-          if (dateTime) events.push(`Dialogue: 0,${start},${end},DateTime,,0,0,0,,${assText(dateTime)}`);
-          if (extraValues.length) events.push(`Dialogue: 0,${start},${end},Extra,,0,0,0,,${assText(extraValues.join('\n'))}`);
+          for (const line of lines) {
+            let style = 'Default';
+            if (/^(Lat|Longitude|Longitude\s*:|Latitude|Lon)/i.test(line) || /\|\s*Lon:/i.test(line)) style = 'Coordinate';
+            else if (/^Height\b|^Alt\b/i.test(line)) style = 'Height';
+            else if (/^Date\b|^Time\b|Date\/Time/i.test(line)) style = 'DateTime';
+            events.push(`Dialogue: 0,${start},${end},${style},,0,0,0,,${assText(line)}`);
+          }
         }
 
         return `${header.join('\n')}\n${events.join('\n')}\n`;
@@ -538,36 +519,53 @@
       }
 
       function renderTextFromMetadata(originalText, meta) {
-        const preserveLines = [];
-        const lines = originalText.split('\n').map(l => l.trim()).filter(Boolean);
-        // Remove lines or fragments that look like key:value or bracketed [key: value]
-        const keyFragmentRe = /(?:\[[^\]]*:[^\]]*\])|(?:[a-zA-Z][a-zA-Z0-9_ ]*:\s*[^,<>\]]+)/g;
-        for (let l of lines) {
-          // If the whole line is only key:value fragments, skip it entirely
-          const onlyKeyFragments = l.replace(keyFragmentRe, '').trim() === '';
-          if (onlyKeyFragments) continue;
-          // Otherwise remove embedded key fragments and keep the rest of the line
-          l = l.replace(keyFragmentRe, '').trim();
-          // clean leftover punctuation/commas from removed fragments
-          l = l.replace(/\s*,\s*/g, ', ').replace(/(^[\s,]+|[\s,]+$)/g, '');
-          if (l) preserveLines.push(l);
+        const m = meta || {};
+        const lines = [];
+
+        const lat = m.lat ?? m.latitude;
+        const lon = m.lon ?? m.longitude;
+        if (lat !== undefined && lon !== undefined) {
+          lines.push(`Lat: ${Number(lat).toFixed(6)} | Lon: ${Number(lon).toFixed(6)}`);
         }
 
-        const kvLines = [];
-        const order = ['height', 'lat', 'lon', 'speed', 'heading', 'yaw'];
-        if (meta) {
-          for (const k of order) {
-            if (meta[k] === undefined) continue;
-            const digits = k === 'height' ? 2 : (k === 'lat' || k === 'lon' ? 6 : null);
-            const value = digits === null ? meta[k] : Number(meta[k]).toFixed(digits);
-            kvLines.push(`${k}: ${value}`);
-          }
-          for (const k of Object.keys(meta)) {
-            if (!order.includes(k)) kvLines.push(`${k}: ${meta[k]}`);
+        const heightValue = m.height ?? m.alt;
+        if (heightValue !== undefined && heightValue !== null && heightValue !== '') {
+          lines.push(`Height: ${Number(heightValue).toFixed(2)}`);
+        }
+
+        const dateValue = m.date ?? m.datetime ?? m.timestamp ?? m.time;
+        if (dateValue !== undefined && dateValue !== null && dateValue !== '') {
+          const formattedDate = String(dateValue).replace('T', ' ');
+          if (/\d{4}-\d{2}-\d{2}/.test(formattedDate)) {
+            lines.push(`Date/Time: ${formattedDate}`);
+          } else if (m.date && m.time) {
+            lines.push(`Date/Time: ${m.date} ${m.time}`);
+          } else {
+            lines.push(`Date/Time: ${formattedDate}`);
           }
         }
 
-        return [...kvLines, ...preserveLines].join('\n');
+        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'index'];
+        for (const key of orderedKeys) {
+          if (m[key] === undefined || m[key] === null || m[key] === '') continue;
+          const value = Number(m[key]);
+          const text = Number.isFinite(value) ? value.toFixed(value % 1 === 0 ? 0 : 2) : String(m[key]);
+          const label = key === 'gpsnum' ? 'GPS Num' : key.charAt(0).toUpperCase() + key.slice(1);
+          lines.push(`${label}: ${text}`);
+        }
+
+        const extraKeys = Object.keys(m)
+          .filter(key => !['lat', 'lon', 'latitude', 'longitude', 'height', 'alt', 'date', 'datetime', 'timestamp', 'time', ...orderedKeys].includes(String(key).toLowerCase()))
+          .sort();
+        for (const key of extraKeys) {
+          if (m[key] === undefined || m[key] === null || m[key] === '') continue;
+          lines.push(`${key}: ${m[key]}`);
+        }
+
+        if (lines.length) return lines.join('\n');
+
+        const fallback = String(originalText || '').split('\n').map(line => line.trim()).filter(Boolean);
+        return fallback.join('\n');
       }
 
       function applyAltitudeCorrection(blocks, opts) {
@@ -813,6 +811,15 @@
       let animHandle = null;
       let telemetrySource = 'generic';
 
+      function syncControlsForSelectedFile() {
+        const scaleControl = document.getElementById('scaleControl');
+        if (!scaleControl) return;
+
+        const selectedFile = selectedFiles[0] && selectedFiles[0].file;
+        const isTxt = !selectedFile || !/\.srt$/i.test(selectedFile.name || '');
+        scaleControl.style.display = isTxt ? 'none' : 'block';
+      }
+
       uploadBtn.addEventListener('click', function (e) {
         e.preventDefault();
         fileInput.click();
@@ -821,6 +828,7 @@
       fileInput.addEventListener('change', function (e) {
         selectedFiles = Array.from(e.target.files).map(f => ({ name: f.name, file: f }));
         fileList.innerHTML = '<ul>' + selectedFiles.map(f => '<li>' + f.name + '</li>').join('') + '</ul>';
+        syncControlsForSelectedFile();
       });
 
       async function readAllFiles() {
@@ -867,6 +875,70 @@
           .sort((a, b) => a.tMs - b.tMs);
       }
 
+      function createBlocksFromTrack(track) {
+        if (!Array.isArray(track) || !track.length) return [];
+
+        const blocks = [];
+        for (let i = 0; i < track.length; i++) {
+          const point = track[i] || {};
+          const startMs = Number(point.tMs) || 0;
+          const prevMs = i > 0 ? Number(track[i - 1].tMs) || startMs : startMs;
+          const nextPoint = track[i + 1] || null;
+          const nextMs = nextPoint ? (Number(nextPoint.tMs) || startMs) : startMs + Math.max(20, startMs - prevMs || 20);
+          const endMs = nextMs > startMs ? nextMs : startMs + Math.max(20, startMs - prevMs || 20);
+          const meta = {};
+
+          const pointEntries = point && typeof point === 'object' ? point : {};
+          Object.keys(pointEntries).forEach(key => {
+            if (key === 'extra') return;
+            const value = pointEntries[key];
+            if (value !== undefined && value !== null && value !== '') meta[key] = value;
+          });
+
+          const extra = point.extra && typeof point.extra === 'object' ? point.extra : {};
+          Object.keys(extra).forEach(key => {
+            const value = extra[key];
+            if (value !== undefined && value !== null && value !== '') meta[key] = value;
+          });
+
+          if (Number.isFinite(Number(meta.lat))) meta.lat = Number(meta.lat);
+          if (Number.isFinite(Number(meta.lon))) meta.lon = Number(meta.lon);
+          if (Number.isFinite(Number(meta.alt))) {
+            meta.alt = Number(meta.alt);
+            if (meta.height === undefined) meta.height = Number(meta.alt);
+          }
+          if (Number.isFinite(Number(meta.speed))) meta.speed = Number(meta.speed);
+          if (Number.isFinite(Number(meta.heading))) meta.heading = Number(meta.heading);
+
+          const preferredOrder = ['lat', 'lon', 'height', 'alt', 'speed', 'heading', 'index', 'tMs'];
+          const renderEntries = preferredOrder
+            .filter(key => meta[key] !== undefined)
+            .map(key => {
+              const value = Number(meta[key]);
+              const formatted = Number.isFinite(value)
+                ? (key === 'lat' || key === 'lon' ? value.toFixed(6) : value.toFixed(2))
+                : meta[key];
+              return `${key}: ${formatted}`;
+            });
+
+          const extraEntries = Object.keys(meta)
+            .filter(key => !preferredOrder.includes(key) && key !== 'extra')
+            .map(key => `${key}: ${meta[key]}`);
+
+          const rawText = [...renderEntries, ...extraEntries].join('\n') || `lat: ${meta.lat ?? 'n/a'}\nlon: ${meta.lon ?? 'n/a'}`;
+
+          blocks.push({
+            id: i + 1,
+            startMs,
+            endMs,
+            rawText,
+            metadata: meta,
+            renderText: rawText
+          });
+        }
+        return blocks;
+      }
+
       function updatePreview() {
         const out = mergedBlocks.slice(0, 5).map((b, i) => {
           const tl = `${formatTime(b.startMs)} --> ${formatTime(b.endMs)}`;
@@ -887,6 +959,8 @@
 
         try {
           const isSrt = /\.srt$/i.test(selectedFile.name || '');
+          const isTxt = !isSrt;
+          syncControlsForSelectedFile();
 
           if (isSrt) {
             const files = await readAllFiles();
@@ -928,11 +1002,33 @@
             status.innerText = 'Uploading DJI flight record to backend...';
             const points = await uploadDjiFlightRecord(selectedFile);
             gpsTrack = normalizeBackendTrack(points);
-            mergedBlocks = [];
+            mergedBlocks = createBlocksFromTrack(gpsTrack);
+
+            const discoveredKeys = new Set();
+            for (const b of mergedBlocks) {
+              b.metadata = b.metadata || {};
+              Object.keys(b.metadata).forEach(k => discoveredKeys.add(String(k).toLowerCase()));
+            }
+            if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
+            if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
+
+            const auto = offsetType.value === 'auto';
+            const base = auto ? null : (Number(manualOffset.value) || 0);
+            applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
+
             keyContainer.innerHTML = '';
-            filterCard.style.display = 'none';
-            previewBox.innerText = JSON.stringify(points.slice(0, 5), null, 2);
-            status.innerText = `Received ${gpsTrack.length} GPS points from backend.`;
+            discoveredKeys.forEach(k => {
+              const lab = document.createElement('label');
+              lab.className = 'k';
+              const checkedByDefault = ['lat', 'lon', 'height'].includes(k);
+              lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
+              keyContainer.appendChild(lab);
+            });
+
+            filterCard.style.display = 'block';
+            updatePreview();
+            previewBox.innerText = previewBox.innerText || JSON.stringify(points.slice(0, 5), null, 2);
+            status.innerText = `Received ${gpsTrack.length} GPS points from backend. Choose fields to export as SRT.`;
             telemetrySource = 'drone-flight-record';
           }
 
