@@ -658,6 +658,40 @@
         return blocks;
       }
 
+      // Great-circle distance between two GPS points, in meters (haversine formula)
+      function haversineDistanceM(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const toRad = deg => deg * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+      }
+
+      // Adds distance-from-first-fix and cumulative flight distance to blocks that carry lat/lon metadata
+      function computeDistanceMetrics(blocks) {
+        let homeLat = null, homeLon = null;
+        let prevLat = null, prevLon = null;
+        let cumulativeM = 0;
+        let found = false;
+
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          const lat = Number(b.metadata.lat ?? b.metadata.latitude);
+          const lon = Number(b.metadata.lon ?? b.metadata.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+          if (homeLat === null) { homeLat = lat; homeLon = lon; }
+          if (prevLat !== null) cumulativeM += haversineDistanceM(prevLat, prevLon, lat, lon);
+          prevLat = lat; prevLon = lon;
+
+          b.metadata.distance = Number(haversineDistanceM(homeLat, homeLon, lat, lon).toFixed(2));
+          b.metadata.flight_distance = Number((cumulativeM / 1000).toFixed(3));
+          found = true;
+        }
+        return found;
+      }
+
       function extractGPSTrack(blocks) {
         const track = [];
         for (const b of blocks) {
@@ -1065,13 +1099,21 @@
             const scale = Number(scaleInput.value) || 1;
             const auto = offsetType.value === 'auto';
             const base = auto ? null : (Number(manualOffset.value) || 0);
+
+            // Distance from first GPS fix + cumulative flight distance, when lat/lon metadata is present
+            const hasDistanceMetrics = computeDistanceMetrics(mergedBlocks);
+            if (hasDistanceMetrics) {
+              discoveredKeys.add('distance');
+              discoveredKeys.add('flight_distance');
+            }
+
             applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
 
             keyContainer.innerHTML = '';
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance'].includes(k);
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
