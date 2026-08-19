@@ -423,6 +423,13 @@
         const map = {};
         let m;
 
+        // Regex for YYYY-MM-DD HH:MM:SS.ms format
+        const dateTimeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[.,]\d{3})/;
+        const dateTimeMatch = text.match(dateTimeRegex);
+        if (dateTimeMatch && dateTimeMatch[1]) {
+          addMetadataValue(map, 'datetime', dateTimeMatch[1]);
+        }
+
         bracketKeyValueRegex.lastIndex = 0;
         while ((m = bracketKeyValueRegex.exec(text)) !== null) {
           addMetadataValue(map, m[1], m[2]);
@@ -479,9 +486,11 @@
           Object.keys(metadata).forEach(key => keys.add(key));
           if (Number.isFinite(Number(metadata.lat)) && Number.isFinite(Number(metadata.lon))) hasCoordinates = true;
         }
-        const hasGogglesSignature = keys.has('glsbat') || keys.has('gpsnum') || (keys.has('hs') && keys.has('vs'));
+        const hasGogglesSignature = keys.has('glsbat') || keys.has('bitrate') || (keys.has('hs') && keys.has('vs'));
+        const hasFPVDroneSignature = keys.has('roll') || keys.has('pitch') || keys.has('yaw');
+
         if (hasCoordinates) return 'drone-camera';
-        if (hasGogglesSignature) return 'goggles-telemetry';
+        if (hasGogglesSignature && !hasFPVDroneSignature) return 'goggles-telemetry';
         return 'generic';
       }
 
@@ -988,11 +997,10 @@
         status.innerText = 'Processing...';
 
         try {
-          const isSrt = /\.srt$/i.test(selectedFile.name || '');
-          const isTxt = !isSrt;
-          syncControlsForSelectedFile();
+          const fileName = selectedFile.name || '';
+          syncControlsForSelectedFile(); // This function already checks the extension
 
-          if (isSrt) {
+          if (/\.srt$/i.test(fileName)) {
             const files = await readAllFiles();
             const policy = mergePolicy.value;
             const opts = { ordering: 'name', policy: policy, gapMs: Number(gapMs.value) || 0 };
@@ -1008,7 +1016,29 @@
             if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
             if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
 
-            telemetrySource = classifyTelemetrySource(mergedBlocks);
+            // Classify telemetry source based on filename first, then content if generic
+            const fileName = selectedFiles[0].name.toUpperCase();
+            if (fileName.includes('DJI_') && fileName.endsWith('.SRT')) {
+              telemetrySource = 'drone-camera';
+            } else if (fileName.includes('DJI') && fileName.endsWith('.SRT')) {
+              telemetrySource = 'goggles-telemetry';
+            } else {
+              telemetrySource = classifyTelemetrySource(mergedBlocks); // Fallback to content-based classification
+            }
+
+            // Correct altitude for drone-camera source, as per user request, but leave height
+            // for the UI controls to handle. This avoids double-correction.
+            if (telemetrySource === 'drone-camera') {
+              for (const block of mergedBlocks) {
+                if (block.metadata && block.metadata.altitude !== undefined) {
+                  const originalAltitude = Number(block.metadata.altitude);
+                  if (Number.isFinite(originalAltitude)) {
+                    block.metadata.altitude = originalAltitude * 10;
+                    block.metadata.altitude = Number(block.metadata.altitude.toFixed(2));
+                  }
+                }
+              }
+            }
 
             const scale = Number(scaleInput.value) || 1;
             const auto = offsetType.value === 'auto';
@@ -1019,7 +1049,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['latitude', 'longitude', 'height', 'altitude'].includes(k);
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'altitude', 'date', 'time', 'datetime'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
@@ -1028,7 +1058,7 @@
             updatePreview();
 
             gpsTrack = extractGPSTrack(mergedBlocks);
-          } else {
+          } else if (/\.txt$/i.test(fileName)) {
             status.innerText = 'Uploading DJI flight record to backend...';
             const points = await uploadDjiFlightRecord(selectedFile);
             gpsTrack = normalizeBackendTrack(points);
@@ -1050,7 +1080,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['lat', 'lon', 'height'].includes(k);
+              const checkedByDefault = ['lat', 'lon', 'height', 'altitude', 'date', 'time', 'datetime'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
@@ -1060,6 +1090,9 @@
             previewBox.innerText = previewBox.innerText || JSON.stringify(points.slice(0, 5), null, 2);
             status.innerText = `Received ${gpsTrack.length} GPS points from backend. Choose fields to export as SRT.`;
             telemetrySource = 'drone-flight-record';
+          } else {
+            alert(`Unsupported file type: ${fileName}. Please select a .srt or .txt file.`);
+            status.innerText = `Unsupported file type: ${fileName}.`;
           }
 
           if (gpsTrack.length > 0) {
