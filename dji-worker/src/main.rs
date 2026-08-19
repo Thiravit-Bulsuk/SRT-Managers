@@ -70,16 +70,38 @@ async fn fetch_keychains(parser: &DJILog, api_key: &str) -> Result<Vec<Vec<Keych
     payload.data.ok_or_else(|| "DJI keychain API returned no data".to_string())
 }
 
+// Great-circle distance between two GPS points, in meters (haversine formula).
+fn haversine_distance_m(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    const EARTH_RADIUS_M: f64 = 6_371_000.0;
+    let (lat1_r, lat2_r) = (lat1.to_radians(), lat2.to_radians());
+    let d_lat = (lat2 - lat1).to_radians();
+    let d_lon = (lon2 - lon1).to_radians();
+    let a = (d_lat / 2.0).sin().powi(2) + lat1_r.cos() * lat2_r.cos() * (d_lon / 2.0).sin().powi(2);
+    2.0 * EARTH_RADIUS_M * a.sqrt().asin()
+}
+
 fn parse_parser(parser: DJILog, keychains: Option<Vec<Vec<KeychainFeaturePoint>>>) -> Result<Value, (StatusCode, String)> {
     let frames = parser.frames(keychains).map_err(internal)?;
-    let points: Vec<_> = frames.iter().enumerate().filter_map(|(index, frame)| {
-        if !frame.osd.is_gpd_used || !frame.osd.latitude.is_finite() || !frame.osd.longitude.is_finite() { return None; }
-        
+    let home = &parser.details;
+    let mut prev_latlon: Option<(f64, f64)> = None;
+    let mut cumulative_distance_m: f64 = 0.0;
+    let mut points = Vec::new();
+
+    for (index, frame) in frames.iter().enumerate() {
+        if !frame.osd.is_gpd_used || !frame.osd.latitude.is_finite() || !frame.osd.longitude.is_finite() { continue; }
+
         // Calculate common attributes
         let speed = (frame.osd.x_speed.powi(2) + frame.osd.y_speed.powi(2)).sqrt();
         let t_ms = (frame.osd.fly_time * 1000.0) as i64;
-        
-        Some(json!({
+
+        if let Some((prev_lat, prev_lon)) = prev_latlon {
+            cumulative_distance_m += haversine_distance_m(prev_lat, prev_lon, frame.osd.latitude, frame.osd.longitude);
+        }
+        prev_latlon = Some((frame.osd.latitude, frame.osd.longitude));
+
+        let distance_from_home_m = haversine_distance_m(home.latitude, home.longitude, frame.osd.latitude, frame.osd.longitude);
+
+        points.push(json!({
             "tMs": t_ms, 
             "lat": frame.osd.latitude, 
             "lon": frame.osd.longitude, 
@@ -91,7 +113,8 @@ fn parse_parser(parser: DJILog, keychains: Option<Vec<Vec<KeychainFeaturePoint>>
             "pitch": frame.osd.pitch,
             "roll": frame.osd.roll,
             "battery": frame.battery.charge_level,
-            "distance": frame.osd.fly_time, // Placeholder, usually computed later or if available in OSD
+            "distance": distance_from_home_m, // distance from home point (m)
+            "flight_distance": cumulative_distance_m / 1000.0, // cumulative flight distance / kilometrage (km)
             "gpsnum": frame.osd.gps_num,
             "signal": frame.rc.downlink_signal,
             "x_speed": frame.osd.x_speed,
@@ -100,8 +123,8 @@ fn parse_parser(parser: DJILog, keychains: Option<Vec<Vec<KeychainFeaturePoint>>
             "flight_time": frame.osd.fly_time,
             "flight_mode": frame.osd.flyc_state,
             "index": index
-        }))
-    }).collect();
+        }));
+    }
     Ok(json!({"ok": true, "version": parser.version, "frameCount": frames.len(), "pointCount": points.len(), "points": points}))
 }
 

@@ -589,14 +589,18 @@
           }
         }
 
-        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'flight_time', 'index'];
+        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'flight_distance', 'flight_time', 'index'];
         for (const key of orderedKeys) {
           if (m[key] === undefined || m[key] === null || m[key] === '') continue;
           let value = Number(m[key]);
           if (key === 'speed') value *= 3.6; // Convert m/s from DJI to km/h
-          const text = Number.isFinite(value) ? value.toFixed(value % 1 === 0 ? 0 : 2) : String(m[key]);
-          const label = key === 'gpsnum' ? 'GPS Num' : key === 'flight_time' ? 'Flight Time' : key.charAt(0).toUpperCase() + key.slice(1);
-          const unit = key === 'speed' ? ' km/h' : key === 'flight_time' ? ' s' : '';
+          const decimals = key === 'flight_distance' ? 3 : (value % 1 === 0 ? 0 : 2);
+          const text = Number.isFinite(value) ? value.toFixed(decimals) : String(m[key]);
+          const label = key === 'gpsnum' ? 'GPS Num' : key === 'flight_time' ? 'Flight Time'
+            : key === 'distance' ? 'Distance' : key === 'flight_distance' ? 'Flight Distance'
+            : key.charAt(0).toUpperCase() + key.slice(1);
+          const unit = key === 'speed' ? ' km/h' : key === 'flight_time' ? ' s'
+            : key === 'distance' ? ' m' : key === 'flight_distance' ? ' km' : '';
           lines.push(`${label}: ${text}${unit}`);
         }
 
@@ -1067,7 +1071,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime'].includes(k);
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
@@ -1098,7 +1102,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime'].includes(k);
+              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
