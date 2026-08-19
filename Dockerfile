@@ -14,8 +14,7 @@ RUN chmod +x /opt/dji/FRSample
 COPY server/package*.json ./server/
 RUN cd server && npm ci --omit=dev
 COPY server ./server
-COPY index.html ./index.html
-COPY js ./js
+COPY public ./public
 
 ENV PORT=8080
 ENV TEMP_DIR=/tmp

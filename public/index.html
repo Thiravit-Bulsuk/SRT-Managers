@@ -565,9 +565,16 @@
           lines.push(`Lat: ${Number(lat).toFixed(6)} | Lon: ${Number(lon).toFixed(6)}`);
         }
 
-        const heightValue = m.height ?? m.alt;
+        // Height above launch/ground point (relative height)
+        const heightValue = m.height;
         if (heightValue !== undefined && heightValue !== null && heightValue !== '') {
           lines.push(`Height: ${Number(heightValue).toFixed(2)}`);
+        }
+
+        // Altitude above sea level (separate value from relative height)
+        const altValue = m.alt ?? m.altitude;
+        if (altValue !== undefined && altValue !== null && altValue !== '') {
+          lines.push(`Altitude: ${Number(altValue).toFixed(2)}`);
         }
 
         const dateValue = m.date ?? m.datetime ?? m.timestamp ?? m.time;
@@ -582,23 +589,26 @@
           }
         }
 
-        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'index'];
+        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'flight_time', 'index'];
         for (const key of orderedKeys) {
           if (m[key] === undefined || m[key] === null || m[key] === '') continue;
           let value = Number(m[key]);
           if (key === 'speed') value *= 3.6; // Convert m/s from DJI to km/h
           const text = Number.isFinite(value) ? value.toFixed(value % 1 === 0 ? 0 : 2) : String(m[key]);
-          const label = key === 'gpsnum' ? 'GPS Num' : key.charAt(0).toUpperCase() + key.slice(1);
-          const unit = key === 'speed' ? ' km/h' : '';
+          const label = key === 'gpsnum' ? 'GPS Num' : key === 'flight_time' ? 'Flight Time' : key.charAt(0).toUpperCase() + key.slice(1);
+          const unit = key === 'speed' ? ' km/h' : key === 'flight_time' ? ' s' : '';
           lines.push(`${label}: ${text}${unit}`);
         }
 
         const extraKeys = Object.keys(m)
-          .filter(key => !['lat', 'lon', 'latitude', 'longitude', 'height', 'alt', 'date', 'datetime', 'timestamp', 'time', ...orderedKeys].includes(String(key).toLowerCase()))
+          .filter(key => !['lat', 'lon', 'latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'datetime', 'timestamp', 'time', ...orderedKeys].includes(String(key).toLowerCase()))
           .sort();
         for (const key of extraKeys) {
           if (m[key] === undefined || m[key] === null || m[key] === '') continue;
-          lines.push(`${key}: ${m[key]}`);
+          const rawValue = m[key];
+          const numericValue = Number(rawValue);
+          const text = Number.isFinite(numericValue) && rawValue !== '' ? numericValue.toFixed(2) : String(rawValue);
+          lines.push(`${key}: ${text}`);
         }
 
         if (lines.length) return lines.join('\n');
@@ -942,14 +952,17 @@
 
           if (Number.isFinite(Number(meta.lat))) meta.lat = Number(meta.lat);
           if (Number.isFinite(Number(meta.lon))) meta.lon = Number(meta.lon);
-          if (Number.isFinite(Number(meta.alt))) {
-            meta.alt = Number(meta.alt);
-            if (meta.height === undefined) meta.height = Number(meta.alt);
+          if (Number.isFinite(Number(meta.alt))) meta.alt = Number(meta.alt);
+          if (Number.isFinite(Number(meta.height))) {
+            meta.height = Number(meta.height);
+          } else if (Number.isFinite(Number(meta.alt))) {
+            // Fallback for older backend responses that don't provide a separate height field
+            meta.height = Number(meta.alt);
           }
           if (Number.isFinite(Number(meta.speed))) meta.speed = Number(meta.speed);
           if (Number.isFinite(Number(meta.heading))) meta.heading = Number(meta.heading);
 
-          const preferredOrder = ['lat', 'lon', 'height', 'alt', 'speed', 'heading', 'index', 'tMs'];
+          const preferredOrder = ['lat', 'lon', 'height', 'alt', 'speed', 'heading', 'datetime', 'index', 'tMs'];
           const renderEntries = preferredOrder
             .filter(key => meta[key] !== undefined)
             .map(key => {
@@ -962,7 +975,12 @@
 
           const extraEntries = Object.keys(meta)
             .filter(key => !preferredOrder.includes(key) && key !== 'extra')
-            .map(key => `${key}: ${meta[key]}`);
+            .map(key => {
+              const rawValue = meta[key];
+              const numericValue = Number(rawValue);
+              const formatted = Number.isFinite(numericValue) && rawValue !== '' ? numericValue.toFixed(2) : rawValue;
+              return `${key}: ${formatted}`;
+            });
 
           const rawText = [...renderEntries, ...extraEntries].join('\n') || `lat: ${meta.lat ?? 'n/a'}\nlon: ${meta.lon ?? 'n/a'}`;
 
@@ -1049,7 +1067,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['latitude', 'longitude', 'height', 'altitude', 'date', 'time', 'datetime'].includes(k);
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
@@ -1080,7 +1098,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['lat', 'lon', 'height', 'altitude', 'date', 'time', 'datetime'].includes(k);
+              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });

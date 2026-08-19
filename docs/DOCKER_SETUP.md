@@ -218,7 +218,7 @@ node server.js
 ## Next Steps After Setup
 
 1. **Test with sample file** (see Step 5 above)
-2. **Open web UI:** [index.html](../index.html) in browser
+2. **Open web UI:** [public/index.html](../public/index.html) in browser, or visit `http://localhost:3001` once the server is running
 3. **Upload real DJI flight record file** and see track on map
 4. **Done!** 🎉
 

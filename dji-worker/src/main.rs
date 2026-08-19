@@ -83,7 +83,9 @@ fn parse_parser(parser: DJILog, keychains: Option<Vec<Vec<KeychainFeaturePoint>>
             "tMs": t_ms, 
             "lat": frame.osd.latitude, 
             "lon": frame.osd.longitude, 
-            "alt": frame.osd.altitude, 
+            "alt": frame.osd.altitude, // altitude above sea level (m)
+            "height": frame.osd.height, // height above takeoff/ground level (m)
+            "datetime": frame.custom.date_time,
             "speed": speed, 
             "heading": frame.osd.yaw,
             "pitch": frame.osd.pitch,

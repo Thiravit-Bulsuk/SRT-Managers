@@ -19,10 +19,10 @@ The application consists of a simple frontend to interact with the services, a N
 
 The project is organized into several key directories:
 
-- **`/`**: The root directory contains the main `index.html`, Docker files for building the parser, and various utility scripts.
-- **`/js`**: Contains the frontend JavaScript logic.
-  - `srt_utils.js`: Core functions for parsing and manipulating SRT files.
-  - `map_anim.js`, `telemetry.js`: Additional modules for handling telemetry and map animations.
+- **`/`**: The root directory contains Docker files for building the parser and various utility scripts.
+- **`/public`**: The frontend served by the Node.js backend.
+  - `index.html`: The single-page web UI (upload, merge, map/animation, export).
+  - `js/`: Frontend JavaScript modules (`srt_utils.js`, `map_anim.js`, `telemetry.js`).
 - **`/server`**: A Node.js/Express backend.
   - `server.js`: The main server entry point, handles file uploads and serves the frontend.
 - **`/dji-worker`**: A Rust-based service for parsing DJI log files.
