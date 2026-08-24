@@ -217,12 +217,15 @@
     });
     window.googleMapsCallback = () => resolveGoogleMaps();
     window.googleMapsError = () => rejectGoogleMaps(new Error('Google Maps could not be loaded. Check the API key and allowed referrer.'));
+    if (!window.GOOGLE_MAPS_API_KEY) {
+      window.googleMapsError();
+    }
     const googleMapsScript = document.createElement('script');
     googleMapsScript.async = true;
     googleMapsScript.defer = true;
     googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(window.GOOGLE_MAPS_API_KEY || '')}&loading=async&callback=googleMapsCallback`;
     googleMapsScript.onerror = window.googleMapsError;
-    document.head.appendChild(googleMapsScript);
+    if (window.GOOGLE_MAPS_API_KEY) document.head.appendChild(googleMapsScript);
   </script>
   <script>
     (function () {

@@ -27,7 +27,9 @@ jobs:
       - name: Configure Google Maps key
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-        run: printf "window.GOOGLE_MAPS_API_KEY = '%s';\n" "$GOOGLE_MAPS_API_KEY" > public/config.js
+        run: |
+          test -n "$GOOGLE_MAPS_API_KEY" || { echo "GOOGLE_MAPS_API_KEY secret is missing" >&2; exit 1; }
+          printf "window.GOOGLE_MAPS_API_KEY = '%s';\n" "$GOOGLE_MAPS_API_KEY" > public/config.js
       - uses: actions/upload-pages-artifact@v5
         with:
           path: public
