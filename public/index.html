@@ -752,20 +752,13 @@
       function createGoogleMap(containerId, options) {
         const center = options && options.center ? options.center : [0, 0];
         const googleCenter = { lat: center[0], lng: center[1] };
-        const isCompactViewport = window.matchMedia('(max-width: 600px)').matches;
         const map = new google.maps.Map(document.getElementById(containerId), {
           center: googleCenter,
           zoom: options && options.zoom ? Math.min(options.zoom, 20) : 15,
           maxZoom: 19,
           mapTypeId: 'satellite',
           streetViewControl: false,
-          mapTypeControl: true,
-          mapTypeControlOptions: {
-            style: isCompactViewport
-              ? google.maps.MapTypeControlStyle.DROPDOWN_MENU
-              : google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-            position: google.maps.ControlPosition.TOP_RIGHT
-          },
+          mapTypeControl: false,
           fullscreenControl: true
         });
         const marker = new google.maps.Marker({
