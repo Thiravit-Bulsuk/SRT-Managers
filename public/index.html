@@ -67,6 +67,7 @@
     .map-controls #pauseBtn::before  { content: '⏸️'; font-size: 20px; }
     .map-controls #ffBtn::before     { content: '⏩'; font-size: 20px; }
     .map-controls #stopBtn::before   { content: '⏹️'; font-size: 20px; }
+    .map-controls #shareLocationBtn::before { content: '↗'; font-size: 24px; }
     .time-slider{flex:1;accent-color:#00d9b3}
     .map-controls > div:last-child{font-variant-numeric:tabular-nums;color:#a9b5b8;font-size:12px}
     .map-coordinate{margin-top:8px;color:#fff;font-size:13px;font-variant-numeric:tabular-nums}
@@ -110,7 +111,7 @@
       #fileList{overflow-wrap:anywhere}
       #processBtn{width:100%;min-height:40px}
       #filterCard .btn{margin:4px 4px 0 0 !important}
-      .map-controls{display:grid;grid-template-columns:repeat(5,40px);gap:10px;justify-content:start}
+      .map-controls{display:grid;grid-template-columns:repeat(6,40px);gap:10px;justify-content:start}
       .map-controls > span{display:none}
       .map-controls .time-slider{grid-column:1 / -1;width:100%;min-width:0;margin-top:4px}
       .map-controls > div:last-child{grid-column:1 / -1;min-width:0 !important;text-align:left !important}
@@ -187,6 +188,7 @@
         <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause"></button>
         <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds"></button>
         <button id="stopBtn" class="btn" title="Stop" aria-label="Stop"></button>
+        <button id="shareLocationBtn" class="btn" title="Share current location" aria-label="Share current location"></button>
         <span style="width:8px"></span>
         <input id="timeSlider" type="range" class="time-slider" min="0" max="100" value="0">
         <div style="min-width:120px;text-align:right">
@@ -750,6 +752,7 @@
       function createGoogleMap(containerId, options) {
         const center = options && options.center ? options.center : [0, 0];
         const googleCenter = { lat: center[0], lng: center[1] };
+        const isCompactViewport = window.matchMedia('(max-width: 600px)').matches;
         const map = new google.maps.Map(document.getElementById(containerId), {
           center: googleCenter,
           zoom: options && options.zoom ? Math.min(options.zoom, 20) : 15,
@@ -757,6 +760,12 @@
           mapTypeId: 'satellite',
           streetViewControl: false,
           mapTypeControl: true,
+          mapTypeControlOptions: {
+            style: isCompactViewport
+              ? google.maps.MapTypeControlStyle.DROPDOWN_MENU
+              : google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+            position: google.maps.ControlPosition.TOP_RIGHT
+          },
           fullscreenControl: true
         });
         const marker = new google.maps.Marker({
@@ -764,7 +773,6 @@
           position: googleCenter,
           title: 'Drone'
         });
-        const infoWindow = new google.maps.InfoWindow();
         const polyline = new google.maps.Polyline({
           map,
           path: [],
@@ -805,7 +813,7 @@
           window.addEventListener('resize', resizeSquare);
           window.addEventListener('orientationchange', function(){ setTimeout(resizeSquare, 200); });
 
-        return { map, marker, poly: polyline, infoWindow };
+        return { map, marker, poly: polyline };
       }
 
       function showTrackOnMap(mapObj, track) {
@@ -830,7 +838,7 @@
           play() {}, pause() {}, stop() {}, seekTo() {}, seekBy() {}, setSpeed() {}
         };
 
-        const { map, marker, infoWindow } = mapObj;
+        const { marker } = mapObj;
         const startTime = track[0].tMs;
         const endTime = track[track.length - 1].tMs;
         let virtualTime = startTime;
@@ -869,10 +877,6 @@
             if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
               updateMapCoordinate(rLat, rLon);
               if (marker && typeof marker.setPosition === 'function') marker.setPosition({ lat: rLat, lng: rLon });
-              if (infoWindow && map) {
-                infoWindow.setContent('Lat: ' + rLat.toFixed(6) + '<br>Lon: ' + rLon.toFixed(6));
-                infoWindow.open({ map, anchor: marker });
-              }
             }
           } catch (e) { /* ignore DOM update errors */ }
 
@@ -933,11 +937,13 @@
       const mapCard = document.getElementById('mapCard');
       const playBtn = document.getElementById('playBtn');
       const pauseBtn = document.getElementById('pauseBtn');
+      let currentMapLocation = null;
 
       function updateMapCoordinate(lat, lon) {
         const coordinate = document.getElementById('mapCoordinate');
         if (!coordinate || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return;
-        coordinate.innerHTML = `<span>Coordinates:</span> Lat ${Number(lat).toFixed(6)}, Lon ${Number(lon).toFixed(6)}`;
+        currentMapLocation = { lat: Number(lat), lon: Number(lon) };
+        coordinate.innerHTML = `<span>Coordinates:</span> Lat ${currentMapLocation.lat.toFixed(6)}, Lon ${currentMapLocation.lon.toFixed(6)}`;
       }
 
       let selectedFiles = [];
@@ -1343,10 +1349,39 @@
       const ffBtn = document.getElementById('ffBtn');
       const stopBtn = document.getElementById('stopBtn');
       const timeSlider = document.getElementById('timeSlider');
+      const shareLocationBtn = document.getElementById('shareLocationBtn');
 
       if (rewindBtn) rewindBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(-5000); });
       if (ffBtn) ffBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(5000); });
       if (stopBtn) stopBtn.addEventListener('click', function () { if (animHandle) animHandle.stop(); });
+      if (shareLocationBtn) shareLocationBtn.addEventListener('click', async function () {
+        const location = currentMapLocation || (gpsTrack[0] && { lat: gpsTrack[0].lat, lon: gpsTrack[0].lon });
+        if (!location) {
+          status.innerText = 'No current GPS location available';
+          return;
+        }
+
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat.toFixed(6)},${location.lon.toFixed(6)}`;
+        const shareData = {
+          title: 'Drone location',
+          text: `Drone location at ${location.lat.toFixed(6)}, ${location.lon.toFixed(6)}`,
+          url: mapsUrl
+        };
+
+        try {
+          if (navigator.share) {
+            await navigator.share(shareData);
+            status.innerText = 'Location shared';
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(mapsUrl);
+            status.innerText = 'Location link copied';
+          } else {
+            window.prompt('Copy this location link:', mapsUrl);
+          }
+        } catch (error) {
+          if (error && error.name !== 'AbortError') status.innerText = 'Could not share location';
+        }
+      });
       if (timeSlider) timeSlider.addEventListener('input', function (e) {
         if (!animHandle || !gpsTrack || gpsTrack.length < 2) return;
         const pct = Number(e.target.value) / 100;
