@@ -4,7 +4,6 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SRT Manager — Merge, Fix Height, Map & Export</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;background:#111217;color:#eee;margin:0;padding:20px}
     .container{max-width:980px;margin:0 auto;background:#1b1c22;padding:18px;border-radius:8px}
@@ -208,7 +207,23 @@
     <p id="status" style="margin-top:12px;color:#7fffd4">Ready</p>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="config.js"></script>
+  <script>
+    let resolveGoogleMaps;
+    let rejectGoogleMaps;
+    window.googleMapsReady = new Promise((resolve, reject) => {
+      resolveGoogleMaps = resolve;
+      rejectGoogleMaps = reject;
+    });
+    window.googleMapsCallback = () => resolveGoogleMaps();
+    window.googleMapsError = () => rejectGoogleMaps(new Error('Google Maps could not be loaded. Check the API key and allowed referrer.'));
+    const googleMapsScript = document.createElement('script');
+    googleMapsScript.async = true;
+    googleMapsScript.defer = true;
+    googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(window.GOOGLE_MAPS_API_KEY || '')}&loading=async&callback=googleMapsCallback`;
+    googleMapsScript.onerror = window.googleMapsError;
+    document.head.appendChild(googleMapsScript);
+  </script>
   <script>
     (function () {
       function parseTime(timeStr) {
@@ -724,29 +739,30 @@
         return ((heading % 360) + 360) % 360;
       }
 
-      function createDroneIcon(heading) {
-        const html = '<div class="drone-dot"></div>';
-        return L.divIcon({
-          className: 'drone-icon',
-          html: html,
-          iconSize: [56, 56],
-          iconAnchor: [28, 28],
-          popupAnchor: [0, -28],
-          tooltipAnchor: [0, -28]
-        });
-      }
-
-      function createLeafletMap(containerId, options) {
+      function createGoogleMap(containerId, options) {
         const center = options && options.center ? options.center : [0, 0];
-          const map = L.map(containerId, { zoomControl: true, maxZoom: 19 }).setView(center, options && options.zoom ? Math.min(options.zoom, 19) : 15);
-          // Use Esri World Imagery (satellite) tiles
-          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(map);
-          const marker = L.marker(center, {
-            icon: createDroneIcon(),
-            zIndexOffset: 1000
-          }).addTo(map);
-          marker.bindTooltip('', { permanent: true, direction: 'top', offset: [0, -18], className: 'coord-badge' });
-          const polyline = L.polyline([], { color: '#00ffcc', weight: 3 }).addTo(map);
+        const googleCenter = { lat: center[0], lng: center[1] };
+        const map = new google.maps.Map(document.getElementById(containerId), {
+          center: googleCenter,
+          zoom: options && options.zoom ? Math.min(options.zoom, 20) : 15,
+          mapTypeId: 'satellite',
+          streetViewControl: false,
+          mapTypeControl: true,
+          fullscreenControl: true
+        });
+        const marker = new google.maps.Marker({
+          map,
+          position: googleCenter,
+          title: 'Drone'
+        });
+        const infoWindow = new google.maps.InfoWindow();
+        const polyline = new google.maps.Polyline({
+          map,
+          path: [],
+          strokeColor: '#00ffcc',
+          strokeOpacity: 1,
+          strokeWeight: 3
+        });
 
           // Responsive map sizing: cap height to viewport and container width
           const container = document.getElementById(containerId);
@@ -756,25 +772,31 @@
               const maxAllowed = Math.max(200, Math.floor(window.innerHeight * 0.72));
               const h = Math.min(containerWidth, maxAllowed);
               container.style.height = h + 'px';
-              map.invalidateSize();
+              google.maps.event.trigger(map, 'resize');
             } catch (e) {
-              try { map.invalidateSize(); } catch (_) {}
+              try { google.maps.event.trigger(map, 'resize'); } catch (_) {}
             }
           }
           resizeSquare();
           window.addEventListener('resize', resizeSquare);
           window.addEventListener('orientationchange', function(){ setTimeout(resizeSquare, 200); });
 
-              return { map, marker, poly: polyline };
+        return { map, marker, poly: polyline, infoWindow };
       }
 
       function showTrackOnMap(mapObj, track) {
         if (!mapObj || !track || !track.length) return;
         const { map, marker, poly } = mapObj;
-        const latlngs = track.map(p => [p.lat, p.lon]);
-        try { if (poly && typeof poly.setLatLngs === 'function') poly.setLatLngs(latlngs); } catch (e) { console.warn('poly.setLatLngs failed', e); }
-        try { if (marker && typeof marker.setLatLng === 'function') marker.setLatLng(latlngs[0]); } catch (e) { console.warn('marker.setLatLng failed', e); }
-        try { if (map && poly && typeof poly.getBounds === 'function') map.fitBounds(poly.getBounds().pad(0.2)); } catch (e) { try { if (map && typeof map.setView === 'function') map.setView(latlngs[0], 15); } catch(e2){}}
+        const path = track.map(p => ({ lat: p.lat, lng: p.lon }));
+        try { if (poly && typeof poly.setPath === 'function') poly.setPath(path); } catch (e) { console.warn('poly.setPath failed', e); }
+        try { if (marker && typeof marker.setPosition === 'function') marker.setPosition(path[0]); } catch (e) { console.warn('marker.setPosition failed', e); }
+        try {
+          const bounds = new google.maps.LatLngBounds();
+          path.forEach(point => bounds.extend(point));
+          map.fitBounds(bounds);
+        } catch (e) {
+          try { if (map && typeof map.setCenter === 'function') map.setCenter(path[0]); } catch (e2) {}
+        }
       }
 
       function animateOnMap(mapObj, track, opts) {
@@ -783,7 +805,7 @@
           play() {}, pause() {}, stop() {}, seekTo() {}, seekBy() {}, setSpeed() {}
         };
 
-        const { marker } = mapObj;
+        const { map, marker, infoWindow } = mapObj;
         const startTime = track[0].tMs;
         const endTime = track[track.length - 1].tMs;
         let virtualTime = startTime;
@@ -804,7 +826,7 @@
           const ratio = (b.tMs === a.tMs) ? 0 : ((tMs - a.tMs) / (b.tMs - a.tMs));
           const lat = a.lat + (b.lat - a.lat) * ratio;
           const lon = a.lon + (b.lon - a.lon) * ratio;
-          try { marker.setLatLng([lat, lon]); } catch (e) {}
+          try { marker.setPosition({ lat, lng: lon }); } catch (e) {}
           // update marker visual: arrow if heading available, otherwise dot
           try {
             const extraMeta = (track[index] && track[index].extra) || {};
@@ -817,18 +839,13 @@
               }
               return null;
             })();
-            if (marker && typeof marker.setIcon === 'function') {
-              marker.setIcon(createDroneIcon(h));
-            }
-
             const rLat = (extraMeta.lat !== undefined) ? Number(extraMeta.lat) : lat;
             const rLon = (extraMeta.lon !== undefined) ? Number(extraMeta.lon) : lon;
             if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
-              if (marker && typeof marker.setLatLng === 'function') marker.setLatLng([rLat, rLon]);
-              if (marker && typeof marker.setTooltipContent === 'function') {
-                const content = 'Lat: ' + rLat.toFixed(6) + '<br>Lon: ' + rLon.toFixed(6);
-                marker.setTooltipContent(content);
-                if (!marker.isTooltipOpen()) marker.openTooltip();
+              if (marker && typeof marker.setPosition === 'function') marker.setPosition({ lat: rLat, lng: rLon });
+              if (infoWindow && map) {
+                infoWindow.setContent('Lat: ' + rLat.toFixed(6) + '<br>Lon: ' + rLon.toFixed(6));
+                infoWindow.open({ map, anchor: marker });
               }
             }
           } catch (e) { /* ignore DOM update errors */ }
@@ -1160,9 +1177,10 @@
           }
 
           if (gpsTrack.length > 0) {
+            await window.googleMapsReady;
             document.getElementById('telemetryCard').style.display = 'none';
             mapCard.style.display = 'block';
-            if (!mapObj) mapObj = createLeafletMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+            if (!mapObj) mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
             showTrackOnMap(mapObj, gpsTrack);
             if (animHandle && animHandle.stop) animHandle.stop();
             animHandle = animateOnMap(mapObj, gpsTrack, {
@@ -1236,7 +1254,7 @@
         status.innerText = `ดาวน์โหลด ASS เสร็จแล้ว: ${a.download}`;
       });
 
-      playBtn.addEventListener('click', function () {
+      playBtn.addEventListener('click', async function () {
         try {
           console.log('play clicked, animHandle=', !!animHandle);
           status.innerText = 'Starting animation...';
@@ -1246,13 +1264,14 @@
             // create map if missing
             if (!mapObj) {
               try {
-                mapObj = createLeafletMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+                await window.googleMapsReady;
+                mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
                 showTrackOnMap(mapObj, gpsTrack);
                 console.log('mapObj created in play handler');
               } catch (e) {
                 console.error('failed to create map in play', e);
-                // fallback: create a stub mapObj with no-op marker so animator can run without Leaflet
-                mapObj = { marker: { setLatLng: function () {} }, map: null };
+                // fallback: create a stub mapObj with no-op marker so animator can run without a map
+                mapObj = { marker: { setPosition: function () {} }, map: null };
                 console.log('mapObj fallback created (no-op marker)');
               }
             }
