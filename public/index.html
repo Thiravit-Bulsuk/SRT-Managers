@@ -69,6 +69,8 @@
     .map-controls #stopBtn::before   { content: '⏹️'; font-size: 20px; }
     .time-slider{flex:1;accent-color:#00d9b3}
     .map-controls > div:last-child{font-variant-numeric:tabular-nums;color:#a9b5b8;font-size:12px}
+    .map-coordinate{margin-top:8px;color:#fff;font-size:13px;font-variant-numeric:tabular-nums}
+    .map-coordinate span{color:#9eaab0}
     .card{background:#0f1113;padding:12px;border-radius:6px;margin-top:12px;border:1px solid #202127}
     .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
     label.k{background:#16161a;padding:6px 8px;border-radius:6px}
@@ -190,6 +192,9 @@
         <div style="min-width:120px;text-align:right">
           <div id="timeLabel">00:00:00.000</div>
         </div>
+      </div>
+      <div id="mapCoordinate" class="map-coordinate" aria-live="polite">
+        <span>Coordinates:</span> N/A
       </div>
     </div>
 
@@ -807,6 +812,7 @@
         if (!mapObj || !track || !track.length) return;
         const { map, marker, poly } = mapObj;
         const path = track.map(p => ({ lat: p.lat, lng: p.lon }));
+        updateMapCoordinate(track[0].lat, track[0].lon);
         try { if (poly && typeof poly.setPath === 'function') poly.setPath(path); } catch (e) { console.warn('poly.setPath failed', e); }
         try { if (marker && typeof marker.setPosition === 'function') marker.setPosition(path[0]); } catch (e) { console.warn('marker.setPosition failed', e); }
         try {
@@ -861,6 +867,7 @@
             const rLat = (extraMeta.lat !== undefined) ? Number(extraMeta.lat) : lat;
             const rLon = (extraMeta.lon !== undefined) ? Number(extraMeta.lon) : lon;
             if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
+              updateMapCoordinate(rLat, rLon);
               if (marker && typeof marker.setPosition === 'function') marker.setPosition({ lat: rLat, lng: rLon });
               if (infoWindow && map) {
                 infoWindow.setContent('Lat: ' + rLat.toFixed(6) + '<br>Lon: ' + rLon.toFixed(6));
@@ -926,6 +933,12 @@
       const mapCard = document.getElementById('mapCard');
       const playBtn = document.getElementById('playBtn');
       const pauseBtn = document.getElementById('pauseBtn');
+
+      function updateMapCoordinate(lat, lon) {
+        const coordinate = document.getElementById('mapCoordinate');
+        if (!coordinate || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return;
+        coordinate.innerHTML = `<span>Coordinates:</span> Lat ${Number(lat).toFixed(6)}, Lon ${Number(lon).toFixed(6)}`;
+      }
 
       let selectedFiles = [];
       let mergedBlocks = [];
