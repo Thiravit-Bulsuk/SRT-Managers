@@ -936,6 +936,51 @@
         return ((heading % 360) + 360) % 360;
       }
 
+      function extractTrackHeading(point) {
+        const extra = point && point.extra ? point.extra : {};
+        const names = ['heading', 'yaw', 'hdg', 'course', 'bearing'];
+        for (const key of names) {
+          if (extra[key] !== undefined) {
+            const normalized = normalizeHeading(extra[key]);
+            if (normalized !== null) return normalized;
+          }
+        }
+        return null;
+      }
+
+      function setMarkerVisual(marker, mode, heading) {
+        if (!marker || typeof marker.setIcon !== 'function' || !window.google || !google.maps) return;
+
+        if (mode === 'arrow' && Number.isFinite(heading)) {
+          marker.setIcon({
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            fillColor: '#ff8a1c',
+            fillOpacity: 1,
+            strokeColor: '#ffd1a6',
+            strokeWeight: 1.6,
+            rotation: heading,
+            anchor: new google.maps.Point(0, 2)
+          });
+          return;
+        }
+
+        marker.setIcon({
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#ff8a1c',
+          fillOpacity: 1,
+          strokeColor: '#ffd1a6',
+          strokeWeight: 2
+        });
+      }
+
+      function resolveMarkerMode(source, track) {
+        if (source !== 'drone-flight-record') return 'dot';
+        if (!Array.isArray(track) || !track.length) return 'dot';
+        return track.some(point => extractTrackHeading(point) !== null) ? 'arrow' : 'dot';
+      }
+
       function createGoogleMap(containerId, options) {
         const center = options && options.center ? options.center : [0, 0];
         const googleCenter = { lat: center[0], lng: center[1] };
@@ -953,6 +998,7 @@
           position: googleCenter,
           title: 'Drone'
         });
+        setMarkerVisual(marker, 'dot', null);
         const polyline = new google.maps.Polyline({
           map,
           path: [],
@@ -993,13 +1039,15 @@
           window.addEventListener('resize', resizeSquare);
           window.addEventListener('orientationchange', function(){ setTimeout(resizeSquare, 200); });
 
-        return { map, marker, poly: polyline };
+        return { map, marker, poly: polyline, markerMode: 'dot' };
       }
 
       function showTrackOnMap(mapObj, track) {
         if (!mapObj || !track || !track.length) return;
         const { map, marker, poly } = mapObj;
         const path = track.map(p => ({ lat: p.lat, lng: p.lon }));
+        const initialHeading = extractTrackHeading(track[0]);
+        setMarkerVisual(marker, mapObj.markerMode || 'dot', initialHeading);
         updateMapCoordinate(track[0].lat, track[0].lon);
         try { if (poly && typeof poly.setPath === 'function') poly.setPath(path); } catch (e) { console.warn('poly.setPath failed', e); }
         try { if (marker && typeof marker.setPosition === 'function') marker.setPosition(path[0]); } catch (e) { console.warn('marker.setPosition failed', e); }
@@ -1043,15 +1091,8 @@
           // update marker visual: arrow if heading available, otherwise dot
           try {
             const extraMeta = (track[index] && track[index].extra) || {};
-            const h = (function () {
-              const names = ['heading','yaw','hdg','course','bearing'];
-              for (const n of names) {
-                if (extraMeta[n] !== undefined) {
-                  const v = Number(extraMeta[n]); if (Number.isFinite(v)) return v;
-                }
-              }
-              return null;
-            })();
+            const h = extractTrackHeading(track[index]);
+            setMarkerVisual(marker, (mapObj && mapObj.markerMode) || 'dot', h);
             const rLat = (extraMeta.lat !== undefined) ? Number(extraMeta.lat) : lat;
             const rLon = (extraMeta.lon !== undefined) ? Number(extraMeta.lon) : lon;
             if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
@@ -1421,6 +1462,7 @@
             document.getElementById('telemetryCard').style.display = 'none';
             mapCard.style.display = 'block';
             if (!mapObj) mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+            mapObj.markerMode = resolveMarkerMode(telemetrySource, gpsTrack);
             showTrackOnMap(mapObj, gpsTrack);
             if (animHandle && animHandle.stop) animHandle.stop();
             animHandle = animateOnMap(mapObj, gpsTrack, {
@@ -1506,6 +1548,7 @@
               try {
                 await window.googleMapsReady;
                 mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+                mapObj.markerMode = resolveMarkerMode(telemetrySource, gpsTrack);
                 showTrackOnMap(mapObj, gpsTrack);
                 console.log('mapObj created in play handler');
               } catch (e) {
