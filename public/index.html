@@ -661,6 +661,45 @@
         }
       }
 
+      function parseFlightTimeSeconds(rawValue) {
+        const numeric = Number(rawValue);
+        if (Number.isFinite(numeric)) return numeric;
+
+        const text = String(rawValue || '').trim();
+        if (!text) return null;
+        const parts = text.split(':').map(v => Number(v));
+        if (parts.some(v => !Number.isFinite(v))) return null;
+        if (parts.length === 2) return (parts[0] * 60) + parts[1];
+        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        return null;
+      }
+
+      function formatFlightTimeMMSS(rawValue) {
+        const seconds = parseFlightTimeSeconds(rawValue);
+        if (!Number.isFinite(seconds)) return String(rawValue);
+        const totalSeconds = Math.max(0, Math.round(seconds));
+        const minutes = Math.floor(totalSeconds / 60);
+        const remainSeconds = totalSeconds % 60;
+        return `${minutes}:${String(remainSeconds).padStart(2, '0')}`;
+      }
+
+      function computeFlightTimeFromBlocks(blocks) {
+        if (!Array.isArray(blocks) || !blocks.length) return false;
+        const firstStartMs = Number(blocks[0].startMs);
+        if (!Number.isFinite(firstStartMs)) return false;
+
+        let applied = false;
+        for (const block of blocks) {
+          if (!block) continue;
+          block.metadata = block.metadata || {};
+          const seconds = (Number(block.startMs) - firstStartMs) / 1000;
+          if (!Number.isFinite(seconds)) continue;
+          block.metadata.flight_time = Number(Math.max(0, seconds).toFixed(2));
+          applied = true;
+        }
+        return applied;
+      }
+
       function getNumericValue(metadata, key) {
         const value = metadata && metadata[key];
         const numeric = Number(value);
@@ -759,6 +798,12 @@
         const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'flight_distance', 'flight_time', 'index'];
         for (const key of orderedKeys) {
           if (m[key] === undefined || m[key] === null || m[key] === '') continue;
+
+          if (key === 'flight_time') {
+            lines.push(`Flight Time: ${formatFlightTimeMMSS(m[key])}`);
+            continue;
+          }
+
           let value = Number(m[key]);
           if (key === 'speed') value *= 3.6; // Convert m/s from DJI to km/h
           const decimals = key === 'flight_distance' ? 3 : (value % 1 === 0 ? 0 : 2);
@@ -766,7 +811,7 @@
           const label = key === 'gpsnum' ? 'GPS Num' : key === 'flight_time' ? 'Flight Time'
             : key === 'distance' ? 'Distance' : key === 'flight_distance' ? 'Flight Distance'
             : key.charAt(0).toUpperCase() + key.slice(1);
-          const unit = key === 'speed' ? ' km/h' : key === 'flight_time' ? ' s'
+          const unit = key === 'speed' ? ' km/h'
             : key === 'distance' ? ' m' : key === 'flight_distance' ? ' km' : '';
           lines.push(`${label}: ${text}${unit}`);
         }
@@ -1294,6 +1339,10 @@
                   }
                 }
               }
+
+              if (computeFlightTimeFromBlocks(mergedBlocks)) {
+                discoveredKeys.add('flight_time');
+              }
             }
 
             if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
@@ -1317,7 +1366,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance'].includes(k);
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance', 'flight_time'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
@@ -1353,7 +1402,7 @@
             discoveredKeys.forEach(k => {
               const lab = document.createElement('label');
               lab.className = 'k';
-              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance'].includes(k);
+              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance', 'flight_time'].includes(k);
               lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
               keyContainer.appendChild(lab);
             });
