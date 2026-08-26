@@ -64,6 +64,7 @@
     .map-controls .btn::before { display: block; font-family: Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; color: inherit; }
     .map-controls #rewindBtn::before { content: '⏪'; font-size: 20px; }
     .map-controls #playBtn::before   { content: '▶️'; font-size: 20px; }
+    .map-controls #playBtn.is-playing::before { content: '⏸️'; font-size: 20px; }
     .map-controls #pauseBtn::before  { content: '⏸️'; font-size: 20px; }
     .map-controls #ffBtn::before     { content: '⏩'; font-size: 20px; }
     .map-controls #stopBtn::before   { content: '⏹️'; font-size: 20px; }
@@ -221,8 +222,8 @@
       <div id="map"></div>
       <div class="map-controls">
         <button id="rewindBtn" class="btn" title="Rewind 5 seconds" aria-label="Rewind 5 seconds"></button>
-        <button id="playBtn" class="btn" title="Play" aria-label="Play"></button>
-        <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause"></button>
+        <button id="playBtn" class="btn" title="Play" aria-label="Play/Pause"></button>
+        <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause" style="display:none" hidden></button>
         <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds"></button>
         <button id="stopBtn" class="btn" title="Stop" aria-label="Stop"></button>
         <button id="shareLocationBtn" class="btn" title="Share current location" aria-label="Share current location"></button>
@@ -1122,9 +1123,16 @@
         function play() {
           if (playing) return;
           playing = true; lastTs = null;
+          if (opts && typeof opts.onPlayStateChange === 'function') opts.onPlayStateChange(true);
           rafId = requestAnimationFrame(loop);
         }
-        function pause() { playing = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } lastTs = null; }
+        function pause() {
+          const wasPlaying = playing;
+          playing = false;
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          lastTs = null;
+          if (wasPlaying && opts && typeof opts.onPlayStateChange === 'function') opts.onPlayStateChange(false);
+        }
         function stop() { pause(); virtualTime = startTime; index = 0; updateMarkerAt(virtualTime); }
         function seekTo(tMs) { virtualTime = clamp(tMs); updateMarkerAt(virtualTime); }
         function seekBy(delta) { seekTo(virtualTime + delta); }
@@ -1175,6 +1183,15 @@
       let mapObj = null;
       let animHandle = null;
       let telemetrySource = 'generic';
+      let isMapPlaying = false;
+
+      function setPlayPauseUi(playing) {
+        isMapPlaying = Boolean(playing);
+        if (!playBtn) return;
+        playBtn.classList.toggle('is-playing', isMapPlaying);
+        playBtn.title = isMapPlaying ? 'Pause' : 'Play';
+        playBtn.setAttribute('aria-label', isMapPlaying ? 'Pause' : 'Play');
+      }
 
       function syncTimezoneControlState() {
         if (!timezoneOffset) return;
@@ -1467,6 +1484,7 @@
             if (animHandle && animHandle.stop) animHandle.stop();
             animHandle = animateOnMap(mapObj, gpsTrack, {
               speed: 1,
+              onPlayStateChange: setPlayPauseUi,
               onTick: function (s) {
                 const percent = ((s.t - s.start) / (s.end - s.start)) * 100;
                 const slider = document.getElementById('timeSlider');
@@ -1483,6 +1501,7 @@
               const fsbtn = document.getElementById('ffBtn'); if (fsbtn) fsbtn.disabled = false;
               const sb = document.getElementById('stopBtn'); if (sb) sb.disabled = false;
               const slider = document.getElementById('timeSlider'); if (slider) { slider.disabled = false; slider.value = 0; }
+              setPlayPauseUi(false);
             } catch (e) { console.warn('enable controls failed', e); }
           } else {
             mapCard.style.display = 'none';
@@ -1539,8 +1558,8 @@
       playBtn.addEventListener('click', async function () {
         try {
           console.log('play clicked, animHandle=', !!animHandle);
-          status.innerText = 'Starting animation...';
           if (!animHandle) {
+            status.innerText = 'Starting animation...';
             console.log('animHandle missing — gpsTrack length=', gpsTrack && gpsTrack.length, 'mapObj=', !!mapObj);
             if (!gpsTrack || gpsTrack.length < 2) { status.innerText = 'No GPS track available'; return; }
             // create map if missing
@@ -1559,34 +1578,29 @@
               }
             }
             if (mapObj && gpsTrack && gpsTrack.length > 1) {
-              animHandle = animateOnMap(mapObj, gpsTrack, { speed: 1, onTick: function(s){
-                const slider = document.getElementById('timeSlider');
-                const label = document.getElementById('timeLabel');
-                if (slider) slider.value = isFinite(((s.t - s.start)/(s.end - s.start))*100) ? Math.max(0, Math.min(100, ((s.t - s.start)/(s.end - s.start))*100)) : 0;
-                if (label) label.innerText = formatTime(s.t);
-                try { status.innerText = 'Playing: ' + formatTime(s.t); } catch(e){}
-              } });
+              animHandle = animateOnMap(mapObj, gpsTrack, {
+                speed: 1,
+                onPlayStateChange: setPlayPauseUi,
+                onTick: function (s) {
+                  const slider = document.getElementById('timeSlider');
+                  const label = document.getElementById('timeLabel');
+                  if (slider) slider.value = isFinite(((s.t - s.start) / (s.end - s.start)) * 100) ? Math.max(0, Math.min(100, ((s.t - s.start) / (s.end - s.start)) * 100)) : 0;
+                  if (label) label.innerText = formatTime(s.t);
+                  try { status.innerText = 'Playing: ' + formatTime(s.t); } catch (e) {}
+                }
+              });
               console.log('animHandle created in play handler=', !!animHandle);
             }
           }
           if (!animHandle) { status.innerText = 'No animator available'; return; }
-          // ensure marker shows current position immediately
-          try { animHandle.seekTo(gpsTrack[0].tMs); } catch(e){}
-          if (typeof animHandle.play === 'function') animHandle.play();
-          playBtn.disabled = true;
-          pauseBtn.disabled = false;
+          if (isMapPlaying) {
+            if (typeof animHandle.pause === 'function') animHandle.pause();
+            status.innerText = 'Paused';
+          } else {
+            if (typeof animHandle.play === 'function') animHandle.play();
+            status.innerText = 'Playing';
+          }
         } catch (e) { console.error('play handler error', e); status.innerText = 'Play failed'; }
-      });
-
-      pauseBtn.addEventListener('click', function () {
-        try {
-          console.log('pause clicked');
-          if (!animHandle) { status.innerText = 'No animator'; return; }
-          if (typeof animHandle.pause === 'function') animHandle.pause();
-          playBtn.disabled = false;
-          pauseBtn.disabled = true;
-          status.innerText = 'Paused';
-        } catch (e) { console.error('pause handler error', e); status.innerText = 'Pause failed'; }
       });
 
       // rewind / forward / stop controls
@@ -1598,7 +1612,11 @@
 
       if (rewindBtn) rewindBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(-5000); });
       if (ffBtn) ffBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(5000); });
-      if (stopBtn) stopBtn.addEventListener('click', function () { if (animHandle) animHandle.stop(); });
+      if (stopBtn) stopBtn.addEventListener('click', function () {
+        if (animHandle) animHandle.stop();
+        setPlayPauseUi(false);
+        status.innerText = 'Stopped';
+      });
       if (shareLocationBtn) shareLocationBtn.addEventListener('click', async function () {
         const location = currentMapLocation || (gpsTrack[0] && { lat: gpsTrack[0].lat, lon: gpsTrack[0].lon });
         if (!location) {
