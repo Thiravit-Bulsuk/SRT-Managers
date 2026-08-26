@@ -150,6 +150,43 @@
           <input type="number" id="scale" value="10" step="0.1"/>
         </div>
         <div style="width:220px">
+          <label style="display:block">Time adjustment</label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:8px;background:#16161a;padding:8px;border-radius:6px;border:1px solid #2b2d34">
+            <input type="checkbox" id="adjustTimezone" checked>
+            <span>ปรับเวลา metadata</span>
+          </label>
+          <div style="margin-top:6px;color:#9eaab0;font-size:12px">ใช้เฉพาะ SRT จาก goggles และ djiflightrecord.txt</div>
+          <select id="timezoneOffset" style="margin-top:8px">
+            <option value="-12">GMT-12</option>
+            <option value="-11">GMT-11</option>
+            <option value="-10">GMT-10</option>
+            <option value="-9">GMT-9</option>
+            <option value="-8">GMT-8</option>
+            <option value="-7">GMT-7</option>
+            <option value="-6">GMT-6</option>
+            <option value="-5">GMT-5</option>
+            <option value="-4">GMT-4</option>
+            <option value="-3">GMT-3</option>
+            <option value="-2">GMT-2</option>
+            <option value="-1">GMT-1</option>
+            <option value="0">GMT+0</option>
+            <option value="1">GMT+1</option>
+            <option value="2">GMT+2</option>
+            <option value="3">GMT+3</option>
+            <option value="4">GMT+4</option>
+            <option value="5">GMT+5</option>
+            <option value="6">GMT+6</option>
+            <option value="7" selected>GMT+7</option>
+            <option value="8">GMT+8</option>
+            <option value="9">GMT+9</option>
+            <option value="10">GMT+10</option>
+            <option value="11">GMT+11</option>
+            <option value="12">GMT+12</option>
+            <option value="13">GMT+13</option>
+            <option value="14">GMT+14</option>
+          </select>
+        </div>
+        <div style="width:220px">
           <label>Offset type</label>
           <select id="offsetType">
             <option value="auto">Auto (first height)</option>
@@ -517,6 +554,111 @@
         if (hasCoordinates) return 'drone-camera';
         if (hasGogglesSignature && !hasFPVDroneSignature) return 'goggles-telemetry';
         return 'generic';
+      }
+
+      function shouldApplyTimeAdjustmentForSource(source) {
+        return source === 'goggles-telemetry' || source === 'drone-flight-record';
+      }
+
+      function formatDateTimeUTC(date, withMs) {
+        const y = date.getUTCFullYear();
+        const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        const h = String(date.getUTCHours()).padStart(2, '0');
+        const mi = String(date.getUTCMinutes()).padStart(2, '0');
+        const s = String(date.getUTCSeconds()).padStart(2, '0');
+        const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+        return withMs ? `${y}-${mo}-${d} ${h}:${mi}:${s},${ms}` : `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+      }
+
+      function formatDateUTC(date) {
+        const y = date.getUTCFullYear();
+        const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        return `${y}-${mo}-${d}`;
+      }
+
+      function formatTimeUTC(date, withMs) {
+        const h = String(date.getUTCHours()).padStart(2, '0');
+        const mi = String(date.getUTCMinutes()).padStart(2, '0');
+        const s = String(date.getUTCSeconds()).padStart(2, '0');
+        const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+        return withMs ? `${h}:${mi}:${s}.${ms}` : `${h}:${mi}:${s}`;
+      }
+
+      function parseDateTimeAsUTC(value) {
+        const text = String(value || '').trim();
+        if (!text) return null;
+
+        const full = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,3}))?$/);
+        if (full) {
+          const msRaw = full[7] || '0';
+          const ms = Number(msRaw.padEnd(3, '0'));
+          return {
+            date: new Date(Date.UTC(Number(full[1]), Number(full[2]) - 1, Number(full[3]), Number(full[4]), Number(full[5]), Number(full[6]), ms)),
+            hasMs: Boolean(full[7])
+          };
+        }
+
+        const isoMs = Date.parse(text);
+        if (Number.isFinite(isoMs)) {
+          return { date: new Date(isoMs), hasMs: /[.,]\d+/.test(text) };
+        }
+
+        return null;
+      }
+
+      function parseDateAndTimeAsUTC(dateValue, timeValue) {
+        const dateText = String(dateValue || '').trim();
+        const timeText = String(timeValue || '').trim();
+        if (!dateText || !timeText) return null;
+
+        const d = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const t = timeText.match(/^(\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,3}))?$/);
+        if (!d || !t) return null;
+
+        const msRaw = t[4] || '0';
+        const ms = Number(msRaw.padEnd(3, '0'));
+        return {
+          date: new Date(Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]), Number(t[3]), ms)),
+          hasMs: Boolean(t[4])
+        };
+      }
+
+      function shiftMetadataTimestamps(meta, offsetHours) {
+        if (!meta || typeof meta !== 'object') return;
+        const offsetMs = Number(offsetHours) * 3600000;
+        if (!Number.isFinite(offsetMs) || offsetMs === 0) return;
+
+        if (meta.datetime !== undefined) {
+          const parsed = parseDateTimeAsUTC(meta.datetime);
+          if (parsed && parsed.date) {
+            meta.datetime = formatDateTimeUTC(new Date(parsed.date.getTime() + offsetMs), parsed.hasMs);
+          }
+        }
+
+        if (meta.timestamp !== undefined) {
+          const parsed = parseDateTimeAsUTC(meta.timestamp);
+          if (parsed && parsed.date) {
+            meta.timestamp = formatDateTimeUTC(new Date(parsed.date.getTime() + offsetMs), parsed.hasMs);
+          }
+        }
+
+        if (meta.date !== undefined && meta.time !== undefined) {
+          const parsed = parseDateAndTimeAsUTC(meta.date, meta.time);
+          if (parsed && parsed.date) {
+            const shifted = new Date(parsed.date.getTime() + offsetMs);
+            meta.date = formatDateUTC(shifted);
+            meta.time = formatTimeUTC(shifted, parsed.hasMs);
+          }
+        }
+      }
+
+      function applyTimezoneOffsetToBlocks(blocks, offsetHours) {
+        for (const b of blocks || []) {
+          if (!b.metadata) continue;
+          shiftMetadataTimestamps(b.metadata, offsetHours);
+        }
       }
 
       function getNumericValue(metadata, key) {
@@ -919,6 +1061,8 @@
       const scaleInput = document.getElementById('scale');
       const offsetType = document.getElementById('offsetType');
       const manualOffset = document.getElementById('manualOffset');
+      const adjustTimezone = document.getElementById('adjustTimezone');
+      const timezoneOffset = document.getElementById('timezoneOffset');
       const keyContainer = document.getElementById('keyContainer');
       const filterCard = document.getElementById('filterCard');
       const previewBox = document.getElementById('previewBox');
@@ -945,6 +1089,14 @@
       let mapObj = null;
       let animHandle = null;
       let telemetrySource = 'generic';
+
+      function syncTimezoneControlState() {
+        if (!timezoneOffset) return;
+        timezoneOffset.disabled = !adjustTimezone.checked;
+      }
+
+      adjustTimezone.addEventListener('change', syncTimezoneControlState);
+      syncTimezoneControlState();
 
       function syncControlsForSelectedFile() {
         const scaleControl = document.getElementById('scaleControl');
@@ -1144,6 +1296,10 @@
               }
             }
 
+            if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
+              applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
+            }
+
             const scale = Number(scaleInput.value) || 1;
             const auto = offsetType.value === 'auto';
             const base = auto ? null : (Number(manualOffset.value) || 0);
@@ -1175,6 +1331,7 @@
             const points = await uploadDjiFlightRecord(selectedFile);
             gpsTrack = normalizeBackendTrack(points);
             mergedBlocks = createBlocksFromTrack(gpsTrack);
+            telemetrySource = 'drone-flight-record';
 
             const discoveredKeys = new Set();
             for (const b of mergedBlocks) {
@@ -1183,6 +1340,10 @@
             }
             if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
             if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
+
+            if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
+              applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
+            }
 
             const auto = offsetType.value === 'auto';
             const base = auto ? null : (Number(manualOffset.value) || 0);
@@ -1201,7 +1362,6 @@
             updatePreview();
             previewBox.innerText = previewBox.innerText || JSON.stringify(points.slice(0, 5), null, 2);
             status.innerText = `Received ${gpsTrack.length} GPS points from backend. Choose fields to export as SRT.`;
-            telemetrySource = 'drone-flight-record';
           } else {
             alert(`Unsupported file type: ${fileName}. Please select a .srt or .txt file.`);
             status.innerText = `Unsupported file type: ${fileName}.`;
