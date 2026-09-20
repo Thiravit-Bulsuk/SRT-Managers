@@ -687,7 +687,6 @@
       const manualOffset = document.getElementById('manualOffset');
       const keyContainer = document.getElementById('keyContainer');
       const filterCard = document.getElementById('filterCard');
-      const previewBox = document.getElementById('previewBox');
       const downloadBtn = document.getElementById('downloadBtn');
       const downloadAssBtn = document.getElementById('downloadAssBtn');
       const selectAll = document.getElementById('selectAll');
@@ -840,14 +839,7 @@
         return blocks;
       }
 
-      function updatePreview() {
-        const out = mergedBlocks.slice(0, 5).map((b, i) => {
-          const tl = `${formatTime(b.startMs)} --> ${formatTime(b.endMs)}`;
-          const txt = b.renderText || b.rawText;
-          return `${i + 1}\n${tl}\n${txt}`;
-        }).join('\n\n');
-        previewBox.innerText = out;
-      }
+
 
       processBtn.addEventListener('click', async function () {
         if (!selectedFiles.length) {
@@ -925,7 +917,6 @@
             });
 
             filterCard.style.display = 'block';
-            updatePreview();
 
             gpsTrack = extractGPSTrack(mergedBlocks);
           } else if (/\.txt$/i.test(fileName)) {
@@ -956,8 +947,6 @@
             });
 
             filterCard.style.display = 'block';
-            updatePreview();
-            previewBox.innerText = previewBox.innerText || JSON.stringify(points.slice(0, 5), null, 2);
             status.innerText = `Received ${gpsTrack.length} GPS points from backend. Choose fields to export as SRT.`;
             telemetrySource = 'drone-flight-record';
           } else {
