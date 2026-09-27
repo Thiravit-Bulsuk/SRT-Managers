@@ -1196,20 +1196,29 @@
       adjustTimezone.addEventListener('change', syncTimezoneControlState);
       syncTimezoneControlState();
 
-      function updateScaleControlVisibilityForSource(source) {
-        const scaleControl = document.getElementById('scaleControl');
-        if (!scaleControl) return;
-        const hideScale = source === 'goggles-telemetry';
-        scaleControl.style.display = hideScale ? 'none' : 'block';
-      }
-
       function syncControlsForSelectedFile() {
         const scaleControl = document.getElementById('scaleControl');
         if (!scaleControl) return;
 
         const selectedFile = selectedFiles[0] && selectedFiles[0].file;
-        const isTxt = !selectedFile || !/\.srt$/i.test(selectedFile.name || '');
+        const fileName = selectedFile ? selectedFile.name || '' : '';
+        const isLowercaseSrt = /\.srt$/.test(fileName);
+        const isUppercaseSrt = /\.SRT$/.test(fileName);
+
+        if (scaleInput) {
+          if (isLowercaseSrt) {
+            scaleInput.value = '1';
+          } else {
+            scaleInput.value = '10';
+          }
+        }
+
+        const isTxt = !selectedFile || !/\.srt$/i.test(fileName);
         scaleControl.style.display = isTxt ? 'none' : 'block';
+
+        if (isUppercaseSrt && scaleInput) {
+          scaleInput.value = '10';
+        }
       }
 
       uploadBtn.addEventListener('click', function (e) {
@@ -1396,8 +1405,6 @@
               }
             }
 
-            updateScaleControlVisibilityForSource(telemetrySource);
-
             if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
               applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
             }
@@ -1413,9 +1420,7 @@
               discoveredKeys.add('flight_distance');
             }
 
-            if (telemetrySource !== 'goggles-telemetry') {
-              applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
-            }
+            applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
 
             keyContainer.innerHTML = '';
             discoveredKeys.forEach(k => {
@@ -1444,17 +1449,13 @@
             if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
             if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
 
-            updateScaleControlVisibilityForSource(telemetrySource);
-
             if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
               applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
             }
 
             const auto = offsetType.value === 'auto';
             const base = auto ? null : (Number(manualOffset.value) || 0);
-            if (telemetrySource !== 'goggles-telemetry') {
-              applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
-            }
+            applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
 
             keyContainer.innerHTML = '';
             discoveredKeys.forEach(k => {
