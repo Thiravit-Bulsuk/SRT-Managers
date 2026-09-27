@@ -1196,6 +1196,13 @@
       adjustTimezone.addEventListener('change', syncTimezoneControlState);
       syncTimezoneControlState();
 
+      function updateScaleControlVisibilityForSource(source) {
+        const scaleControl = document.getElementById('scaleControl');
+        if (!scaleControl) return;
+        const hideScale = source === 'goggles-telemetry';
+        scaleControl.style.display = hideScale ? 'none' : 'block';
+      }
+
       function syncControlsForSelectedFile() {
         const scaleControl = document.getElementById('scaleControl');
         if (!scaleControl) return;
@@ -1389,6 +1396,8 @@
               }
             }
 
+            updateScaleControlVisibilityForSource(telemetrySource);
+
             if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
               applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
             }
@@ -1404,7 +1413,9 @@
               discoveredKeys.add('flight_distance');
             }
 
-            applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
+            if (telemetrySource !== 'goggles-telemetry') {
+              applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
+            }
 
             keyContainer.innerHTML = '';
             discoveredKeys.forEach(k => {
@@ -1433,13 +1444,17 @@
             if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
             if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
 
+            updateScaleControlVisibilityForSource(telemetrySource);
+
             if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
               applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
             }
 
             const auto = offsetType.value === 'auto';
             const base = auto ? null : (Number(manualOffset.value) || 0);
-            applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
+            if (telemetrySource !== 'goggles-telemetry') {
+              applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
+            }
 
             keyContainer.innerHTML = '';
             discoveredKeys.forEach(k => {
