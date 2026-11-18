@@ -1,0 +1,13 @@
+[package]
+name = "dji-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dji-log-parser = "0.5.7"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tower-http = { version = "0.6", features = ["cors"] }

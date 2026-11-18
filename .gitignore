@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+public/config.js
+
+# Local temp/uploads
+/tmp/
+server/tmp/
+server/tmp/uploads/
+tmp/
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Rust build artifacts
+target/

@@ -1,0 +1,3030 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>SRT Manager — Merge, Fix Height, Map & Export</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0a0c11;
+      --surface:#11141b;
+      --surface-2:#171b24;
+      --surface-3:#1e2330;
+      --border:#232937;
+      --border-strong:#2f3647;
+      --text:#e9edf4;
+      --muted:#8a94a8;
+      --accent:#00e0c0;
+      --accent-ink:#03231d;
+      --accent-soft:rgba(0,224,192,0.12);
+      --warn:#ffc861;
+      --radius:14px;
+      --radius-sm:10px;
+      --shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 30px rgba(0,0,0,0.25);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:"Inter","IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
+      font-size:14px;
+      line-height:1.5;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 500px at 85% -10%, rgba(0,224,192,0.08), transparent 60%),
+        radial-gradient(900px 400px at -10% 0%, rgba(80,120,255,0.06), transparent 60%),
+        var(--bg);
+      min-height:100vh;
+      -webkit-font-smoothing:antialiased;
+    }
+    h1,h2,h3{margin:0;font-weight:600;letter-spacing:-0.01em}
+
+    .app-header{
+      max-width:1280px;
+      margin:0 auto;
+      padding:22px 24px 6px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+    }
+    .logo{
+      width:40px;height:40px;flex:none;
+      border-radius:12px;
+      display:grid;place-items:center;
+      background:linear-gradient(135deg,#00e0c0,#2f8cff);
+      color:#041318;
+      box-shadow:0 6px 20px rgba(0,224,192,0.25);
+    }
+    .logo svg{width:22px;height:22px}
+    .app-header h1{font-size:19px}
+    .app-header p{margin:2px 0 0;color:var(--muted);font-size:13px}
+
+    .layout{
+      max-width:1280px;
+      margin:0 auto;
+      padding:16px 24px 32px;
+      display:grid;
+      grid-template-columns:minmax(300px,360px) minmax(0,1fr);
+      gap:20px;
+      align-items:start;
+    }
+    .sidebar{
+      display:flex;flex-direction:column;gap:16px;
+      position:sticky;top:16px;
+    }
+    .results{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+    .card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:18px;
+      box-shadow:var(--shadow);
+    }
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .card-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600}
+    .card-sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+    .step{
+      width:24px;height:24px;flex:none;
+      border-radius:8px;
+      display:grid;place-items:center;
+      font-size:12px;font-weight:700;
+      color:var(--accent);
+      background:var(--accent-soft);
+      border:1px solid rgba(0,224,192,0.25);
+    }
+
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .field-label{font-size:12.5px;font-weight:500;color:#c3cad8}
+    .hint{color:var(--muted);font-size:12px}
+    input[type=number],select{
+      width:100%;
+      height:40px;
+      padding:0 12px;
+      border-radius:var(--radius-sm);
+      border:1px solid var(--border-strong);
+      background:var(--surface-2);
+      color:var(--text);
+      font:inherit;
+      outline:none;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    select{
+      appearance:none;-webkit-appearance:none;
+      padding-right:34px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a94a8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;
+      background-position:right 12px center;
+    }
+    input[type=number]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+    input:disabled,select:disabled{opacity:.45;cursor:not-allowed}
+    input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;margin:0}
+    input[type=range]{accent-color:var(--accent)}
+
+    .toggle{
+      display:flex;align-items:center;gap:10px;
+      padding:10px 12px;
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      border:1px solid var(--border-strong);
+      cursor:pointer;
+      user-select:none;
+    }
+
+    .dropzone{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+      padding:24px 16px;
+      text-align:center;
+      border:1.5px dashed var(--border-strong);
+      border-radius:var(--radius);
+      background:var(--surface-2);
+      cursor:pointer;
+      transition:border-color .15s, background .15s;
+    }
+    .dropzone:hover,.dropzone.is-dragover{border-color:var(--accent);background:var(--accent-soft)}
+    .dropzone-icon{
+      width:42px;height:42px;border-radius:12px;
+      display:grid;place-items:center;
+      background:var(--surface-3);color:var(--accent);
+      margin-bottom:4px;
+    }
+    .dropzone-icon svg{width:22px;height:22px}
+    .dropzone strong{font-size:14px;font-weight:600}
+    .file-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+    .file-list:empty{display:none}
+    .file-chip{
+      display:flex;align-items:center;gap:8px;
+      padding:8px 10px;
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      border:1px solid var(--border);
+      font-size:13px;
+      overflow-wrap:anywhere;
+    }
+    .file-chip::before{content:"";width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent)}
+    .file-chip span{flex:1;min-width:0}
+    .file-remove{
+      flex:none;width:24px;height:24px;
+      border:none;border-radius:6px;
+      background:transparent;color:var(--muted);
+      font-size:18px;line-height:1;cursor:pointer;
+    }
+    .file-remove:hover{background:var(--surface-3);color:var(--text)}
+
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      height:38px;
+      padding:0 14px;
+      border-radius:var(--radius-sm);
+      border:1px solid var(--border-strong);
+      background:var(--surface-2);
+      color:var(--text);
+      font:inherit;font-weight:500;font-size:13.5px;
+      cursor:pointer;
+      transition:background .15s, border-color .15s, transform .1s;
+    }
+    .btn:hover{background:var(--surface-3);border-color:#3c4559}
+    .btn:active{transform:translateY(1px)}
+    .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+    .btn-primary:hover{background:#2bf0d3;border-color:#2bf0d3}
+    .btn-ghost{background:transparent;border-color:transparent;color:var(--muted)}
+    .btn-ghost:hover{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+    .btn-block{width:100%;height:46px;font-size:15px}
+    .btn svg{width:16px;height:16px}
+
+    .status{
+      display:flex;align-items:flex-start;gap:10px;
+      margin:0;
+      padding:10px 12px;
+      border-radius:var(--radius-sm);
+      background:var(--surface);
+      border:1px solid var(--border);
+      color:#c8d0dd;
+      font-size:13px;
+      overflow-wrap:anywhere;
+    }
+    .status::before{
+      content:"";width:8px;height:8px;flex:none;margin-top:6px;
+      border-radius:50%;background:var(--accent);
+      box-shadow:0 0 0 4px var(--accent-soft);
+    }
+
+    .empty-state{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+      min-height:420px;
+      padding:40px 24px;
+      text-align:center;
+      border:1px dashed var(--border-strong);
+      border-radius:var(--radius);
+      color:var(--muted);
+      background:rgba(17,20,27,0.5);
+    }
+    .empty-state svg{width:52px;height:52px;color:#3a4357}
+    .empty-state h3{color:var(--text);font-size:16px}
+    .empty-state p{margin:0;max-width:380px}
+    .results:has(> .card:not([style*="none"])) .empty-state{display:none}
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .actions-split{justify-content:space-between;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+    #fileInput{
+      position:absolute;
+      left:-9999px;
+      width:1px;
+      height:1px;
+      opacity:0;
+      pointer-events:none;
+    }
+    #map{
+      height: auto;
+      width: 100%;
+      min-height: 240px;
+      max-height: calc(100vh - 180px);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .map-controls{display:flex;gap:7px;align-items:center;margin-top:12px;padding:4px 0}
+    .map-controls .btn {
+      width: 40px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+      background: #20232a;
+      color: #eee;
+      border: 1px solid #333742;
+      border-radius: 7px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, .22);
+    }
+    .map-controls .btn:hover {
+      background: #323644;
+      color: #fff;
+      border-color: #4f5464;
+      transform: translateY(-1px);
+    }
+    .map-controls .btn:focus-visible {
+      outline: 2px solid #00ffd1;
+      outline-offset: 2px;
+    }
+    .map-controls .btn:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .map-controls .btn::before { display: block; font-family: Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; color: inherit; }
+    .map-controls #rewindBtn::before { content: '⏪'; font-size: 20px; }
+    .map-controls #playBtn::before   { content: '▶️'; font-size: 20px; }
+    .map-controls #playBtn.is-playing::before { content: '⏸️'; font-size: 20px; }
+    .map-controls #pauseBtn::before  { content: '⏸️'; font-size: 20px; }
+    .map-controls #ffBtn::before     { content: '⏩'; font-size: 20px; }
+    .map-controls #stopBtn::before   { content: '⏹️'; font-size: 20px; }
+    .map-controls #shareLocationBtn::before { content: '↗'; font-size: 24px; }
+    .time-slider{flex:1;accent-color:#00d9b3}
+    .map-controls > div:last-child{font-variant-numeric:tabular-nums;color:#a9b5b8;font-size:12px}
+    .map-coordinate{
+      margin-top:12px;
+      padding:9px 12px;
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      border:1px solid var(--border);
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
+      font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    }
+    .map-coordinate span{color:var(--muted);font-family:"Inter","IBM Plex Sans Thai",sans-serif;margin-right:4px}
+    .flight-preview{
+      position:relative;
+      width:100%;
+      min-height:230px;
+      aspect-ratio:16/9;
+      border-radius:var(--radius-sm);
+      overflow:hidden;
+      border:1px solid var(--border);
+      background:linear-gradient(180deg,#0d1d24 0%,#0a0f14 100%);
+      box-shadow:inset 0 0 0 1px rgba(0,255,209,0.18);
+      cursor:pointer;
+      touch-action:manipulation;
+    }
+    .flight-preview canvas{
+      display:block;
+      width:100%;
+      height:100%;
+      background:radial-gradient(circle at top, rgba(32,64,68,0.88), rgba(7,10,12,0.95));
+    }
+    .flight-preview::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg, rgba(8,12,14,0.18), rgba(8,12,14,0.08) 30%, rgba(8,12,14,0.28));
+      pointer-events:none;
+    }
+    .preview-badge-row,
+    .preview-legend{
+      position:absolute;
+      left:14px;
+      right:14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      z-index:2;
+      pointer-events:none;
+    }
+    .preview-badge-row{top:14px;}
+    .preview-legend{bottom:14px;}
+    .preview-pill,
+    .preview-hint{
+      background:rgba(10,14,18,0.7);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:999px;
+      color:#f4f8fb;
+      font-size:12px;
+      padding:7px 11px;
+      line-height:1.2;
+      backdrop-filter:blur(6px);
+      box-shadow:0 4px 14px rgba(0,0,0,0.22);
+    }
+    .preview-hint{
+      border-color:rgba(0,255,209,0.22);
+      color:#d8fff7;
+      font-weight:600;
+      white-space:nowrap;
+    }
+    .fullscreen-overlay{
+      position:fixed;
+      inset:0;
+      display:none;
+      z-index:1000;
+      background:rgba(2,4,6,0.68);
+      backdrop-filter:blur(10px);
+      overflow:hidden;
+    }
+    .fullscreen-overlay.is-visible{display:block}
+    .fullscreen-stage{
+      position:relative;
+      width:100vw;
+      height:100vh;
+      min-height:100vh;
+      height:100dvh;
+      min-height:100dvh;
+      overflow:hidden;
+      background:#070a0c;
+    }
+    #fullscreenMap{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      min-height:100%;
+      background:#0a0f13;
+    }
+    .fullscreen-ui{position:absolute;inset:0;pointer-events:none}
+    .fullscreen-meta,
+    .fullscreen-actions,
+    .fullscreen-bottom{position:absolute;pointer-events:auto}
+    .fullscreen-meta{
+      left:max(18px, env(safe-area-inset-left));
+      top:max(18px, env(safe-area-inset-top));
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      z-index:3;
+    }
+    .fullscreen-actions{
+      right:max(18px, env(safe-area-inset-right));
+      top:max(18px, env(safe-area-inset-top));
+      z-index:4;
+    }
+    .fullscreen-bottom{
+      left:max(16px, env(safe-area-inset-left));
+      right:max(16px, env(safe-area-inset-right));
+      bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px);
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      transform:translateY(-12px);
+      z-index:5;
+    }
+    .fullscreen-controls{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:nowrap;
+      background:rgba(8, 10, 12, 0.18);
+      border:none;
+      border-radius:999px;
+      padding:8px 12px;
+      backdrop-filter:blur(6px);
+      box-shadow:none;
+    }
+    .mini-btn,
+    .close-btn,
+    .collapse-btn{
+      width:42px;
+      height:42px;
+      border:none;
+      border-radius:50%;
+      background:rgba(10, 12, 15, 0.18);
+      color:#f5f7fa;
+      border:1px solid rgba(255,255,255,0.9);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      box-shadow:none;
+      transition:transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+    .mini-btn svg,
+    .collapse-btn svg,
+    .close-btn svg {
+      width:18px;
+      height:18px;
+      display:block;
+    }
+    .mini-btn:hover,
+    .close-btn:hover,
+    .collapse-btn:hover{
+      background:rgba(255,255,255,0.08);
+      opacity:1;
+    }
+    .mini-btn:active,
+    .close-btn:active,
+    .collapse-btn:active{transform:translateY(1px) scale(0.98)}
+    .mini-btn.is-playing{
+      background:rgba(255,255,255,0.12);
+      color:#fff;
+    }
+    .close-btn,
+    .collapse-btn{
+      width:auto;
+      min-width:92px;
+      height:46px;
+      padding:0 18px;
+      border-radius:999px;
+      background:rgba(10,12,15,0.26);
+      font-size:13px;
+      font-weight:700;
+      letter-spacing:0.02em;
+      color:#fff;
+      border:1px solid rgba(255,255,255,0.9);
+    }
+    #fsPlayBtn {
+      width:42px;
+      height:42px;
+    }
+    #fsPlayBtn svg {
+      width:18px;
+      height:18px;
+    }
+    .mini-btn svg path,
+    .mini-btn svg rect,
+    .mini-btn svg polygon,
+    .mini-btn svg polyline,
+    .mini-btn svg line,
+    .mini-btn svg circle,
+    .collapse-btn svg path,
+    .collapse-btn svg rect,
+    .close-btn svg path,
+    .close-btn svg rect {
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .mini-btn svg polygon,
+    .mini-btn svg polyline,
+    .collapse-btn svg polygon,
+    .collapse-btn svg polyline,
+    .close-btn svg polygon,
+    .close-btn svg polyline {
+      fill: currentColor;
+      stroke: currentColor;
+    }
+    .fullscreen-slider{
+      -webkit-appearance:none;
+      appearance:none;
+      flex:1 1 auto;
+      width:min(78vw, 860px);
+      max-width:100%;
+      height:28px;
+      background:transparent;
+      border-radius:999px;
+      margin:0;
+      padding:0;
+      outline:none;
+      box-shadow:none;
+    }
+    .fullscreen-slider::-webkit-slider-runnable-track{
+      height:7px;
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(0,217,179,0.9) 0%, rgba(0,217,179,0.9) var(--slider-progress, 0%), rgba(255,255,255,0.2) var(--slider-progress, 0%), rgba(255,255,255,0.2) 100%);
+      border:1px solid rgba(255,255,255,0.12);
+      box-shadow:inset 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .fullscreen-slider::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      appearance:none;
+      width:22px;
+      height:22px;
+      border-radius:50%;
+      background:#f6f8fb;
+      border:3px solid #0c9e90;
+      box-shadow:0 2px 8px rgba(0,0,0,0.28);
+      margin-top:-7px;
+      cursor:pointer;
+    }
+    .fullscreen-slider::-moz-range-track{
+      height:7px;
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(0,217,179,0.9) 0%, rgba(0,217,179,0.9) var(--slider-progress, 0%), rgba(255,255,255,0.2) var(--slider-progress, 0%), rgba(255,255,255,0.2) 100%);
+      border:1px solid rgba(255,255,255,0.12);
+    }
+    .fullscreen-slider::-moz-range-thumb{
+      width:22px;
+      height:22px;
+      border:none;
+      border-radius:50%;
+      background:#f6f8fb;
+      border:3px solid #0c9e90;
+      box-shadow:0 2px 8px rgba(0,0,0,0.28);
+      cursor:pointer;
+    }
+    .checkbox-group{display:flex;flex-wrap:wrap;gap:8px}
+    label.k{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:7px 12px 7px 10px;
+      border-radius:999px;
+      background:var(--surface-2);
+      border:1px solid var(--border-strong);
+      font-size:13px;
+      cursor:pointer;
+      user-select:none;
+      transition:background .15s, border-color .15s;
+    }
+    label.k:hover{border-color:#3c4559}
+    label.k:has(input:checked){background:var(--accent-soft);border-color:rgba(0,224,192,0.45);color:#d6fff8}
+    pre {white-space:pre-wrap; word-break:break-word; background:#070709;padding:8px;border-radius:6px}
+    .telemetry-notice{color:var(--warn);background:rgba(255,200,97,0.08);border:1px solid rgba(255,200,97,0.3);padding:10px 12px;border-radius:var(--radius-sm);font-size:13px}
+    .telemetry-notice:empty{display:none}
+    .telemetry-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+    .telemetry-metric{background:var(--surface-2);border:1px solid var(--border);padding:12px 14px;border-radius:var(--radius-sm)}
+    .telemetry-metric span{display:block;color:var(--muted);font-size:12px}
+    .telemetry-metric strong{display:block;color:var(--text);font-size:18px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
+    .timeline{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+    .timeline .time-slider{width:100%}
+    .telemetry-current{margin-top:14px;overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-sm)}
+    .telemetry-current:empty{display:none}
+    .telemetry-current table{width:100%;border-collapse:collapse;font-size:13px}
+    .telemetry-current th,.telemetry-current td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+    .telemetry-current tr:last-child td{border-bottom:none}
+    .telemetry-current th{color:var(--muted);font-weight:500;background:var(--surface-2)}
+    .telemetry-current td:last-child{font-variant-numeric:tabular-nums}
+    /* Marker styles */
+    .drone-icon { width: 56px; height: 56px; display:block; background: transparent; border: none; }
+    .drone-dot { width: 24px; height: 24px; background: #ff8a1c; border-radius: 50%; box-shadow: 0 0 10px rgba(255,138,28,0.95); margin: 16px auto 0; display:block; }
+    .drone-arrow { width: 56px; height: 56px; display:block; transform-origin: 50% 50%; filter: drop-shadow(0 0 8px rgba(255,138,28,0.9)); }
+    .coord-badge {
+      background: rgba(10, 14, 18, 0.82);
+      color: #fff;
+      border: 1px solid rgba(255, 138, 28, 0.7);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+    }
+    @media (max-width:768px){
+      .fullscreen-meta{
+        left:12px;
+        top:12px;
+      }
+      .fullscreen-actions{
+        right:12px;
+        top:12px;
+      }
+      .fullscreen-bottom{
+        left:12px;
+        right:12px;
+        bottom:calc(max(12px, env(safe-area-inset-bottom)) + 6px);
+        flex-direction:column;
+        align-items:stretch;
+        transform:translateY(-12px);
+      }
+      .fullscreen-controls{align-self:center}
+      .fullscreen-slider{
+        width:100%;
+        min-width:0;
+        max-width:none;
+      }
+    }
+    @media (orientation: landscape) and (max-height: 500px){
+      .fullscreen-meta{top:10px; gap:6px}
+      .fullscreen-actions{top:10px}
+      .fullscreen-bottom{
+        display:flex;
+        flex-direction:row;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        bottom:calc(max(10px, env(safe-area-inset-bottom)) + 2px);
+        transform:translateY(-12px);
+      }
+      .fullscreen-controls{
+        flex-shrink:0;
+        justify-content:flex-start;
+      }
+      .mini-btn,
+      .close-btn,
+      .collapse-btn{
+        width:40px;
+        height:40px;
+      }
+      .collapse-btn{min-width:92px;height:44px}
+      .fullscreen-slider{
+        flex:1 1 auto;
+        width:auto;
+        min-width:0;
+        max-width:none;
+        height:18px;
+      }
+      .fullscreen-slider::-webkit-slider-runnable-track{height:6px}
+      .fullscreen-slider::-moz-range-track{height:6px}
+      .fullscreen-slider::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px}
+      .fullscreen-slider::-moz-range-thumb{width:18px;height:18px}
+    }
+    @media (max-width:960px){
+      .layout{grid-template-columns:1fr}
+      .sidebar{position:static}
+      .empty-state{min-height:220px}
+    }
+    @media (max-width:600px){
+      .app-header{padding:16px 14px 4px}
+      .layout{padding:12px 14px 24px;gap:14px}
+      .card{padding:14px}
+      .actions-split{flex-direction:column;align-items:stretch}
+      .actions-split .actions .btn{flex:1}
+      .map-controls{display:grid;grid-template-columns:repeat(6,40px);gap:10px;justify-content:start}
+      .map-controls > span{display:none}
+      .map-controls .time-slider{grid-column:1 / -1;width:100%;min-width:0;margin-top:4px}
+      .map-controls > div:last-child{grid-column:1 / -1;min-width:0 !important;text-align:left !important}
+      #map{min-height:220px;max-height:calc(100vh - 220px)}
+      .coord-badge{font-size:11px}
+      .telemetry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+    </div>
+    <div>
+      <h1>DJI SRT Manager</h1>
+      <p>Merge · Height Fix · Map · Export</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title"><span class="step">1</span>เลือกไฟล์</div>
+        </div>
+        <label class="dropzone" id="uploadBtn">
+          <span class="dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          </span>
+          <strong>คลิกหรือลากไฟล์มาวาง</strong>
+          <span class="hint">รองรับ .SRT หรือ DJI flight record .txt — เลือกหลายไฟล์เพื่อต่อกันตามชื่อไฟล์</span>
+        </label>
+        <input id="fileInput" type="file" accept=".srt,.txt,text/plain" multiple>
+        <div id="fileList" class="file-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title"><span class="step">2</span>ตั้งค่า</div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="mergePolicy">Merge policy</label>
+            <select id="mergePolicy">
+              <option value="concatenate">Concatenate</option>
+              <option value="keep">Keep timestamps</option>
+              <option value="pad">Pad with gap</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="gapMs">Gap (ms)</label>
+            <input type="number" id="gapMs" value="0" min="0" />
+          </div>
+        </div>
+
+        <div class="field" id="scaleControl" style="display:block;margin-top:14px">
+          <label class="field-label" for="scale" style="display:block;margin-bottom:6px">Scale (height multiplier)</label>
+          <input type="number" id="scale" value="10" step="0.1"/>
+        </div>
+
+        <div class="field-row" style="margin-top:14px">
+          <div class="field">
+            <label class="field-label" for="offsetType">Height offset</label>
+            <select id="offsetType">
+              <option value="auto">Auto (first height)</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="manualOffset">Manual offset (m)</label>
+            <input type="number" id="manualOffset" value="0" step="0.1"/>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <span class="field-label">Time adjustment</span>
+          <label class="toggle">
+            <input type="checkbox" id="adjustTimezone" checked>
+            <span>ปรับเวลา metadata</span>
+          </label>
+          <select id="timezoneOffset" aria-label="Timezone">
+            <option value="-12">GMT-12</option>
+            <option value="-11">GMT-11</option>
+            <option value="-10">GMT-10</option>
+            <option value="-9">GMT-9</option>
+            <option value="-8">GMT-8</option>
+            <option value="-7">GMT-7</option>
+            <option value="-6">GMT-6</option>
+            <option value="-5">GMT-5</option>
+            <option value="-4">GMT-4</option>
+            <option value="-3">GMT-3</option>
+            <option value="-2">GMT-2</option>
+            <option value="-1">GMT-1</option>
+            <option value="0">GMT+0</option>
+            <option value="1">GMT+1</option>
+            <option value="2">GMT+2</option>
+            <option value="3">GMT+3</option>
+            <option value="4">GMT+4</option>
+            <option value="5">GMT+5</option>
+            <option value="6">GMT+6</option>
+            <option value="7" selected>GMT+7</option>
+            <option value="8">GMT+8</option>
+            <option value="9">GMT+9</option>
+            <option value="10">GMT+10</option>
+            <option value="11">GMT+11</option>
+            <option value="12">GMT+12</option>
+            <option value="13">GMT+13</option>
+            <option value="14">GMT+14</option>
+          </select>
+          <span class="hint">ใช้เฉพาะ SRT จาก goggles และ djiflightrecord.txt</span>
+        </div>
+      </section>
+
+      <button id="processBtn" class="btn btn-primary btn-block">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7V5z"/></svg>
+        Process
+      </button>
+      <p id="status" class="status" role="status" aria-live="polite">Ready</p>
+    </aside>
+
+    <section class="results" id="results">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
+        <h3>ยังไม่มีข้อมูล</h3>
+        <p>เลือกไฟล์และกด Process เพื่อดูเส้นทางบิน telemetry และส่งออกไฟล์ SRT / ASS / Video</p>
+      </div>
+
+      <div id="mapCard" class="card" style="display:none">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Flight Map</div>
+            <div class="card-sub">แตะที่ภาพเพื่อเปิดแผนที่แบบเต็มจอและเล่น animation</div>
+          </div>
+        </div>
+      <div id="map"></div>
+      <div id="flightPreview" class="flight-preview" tabindex="0" role="button" aria-label="Open full-screen animation">
+        <canvas id="flightPreviewCanvas"></canvas>
+        <div class="preview-badge-row">
+          <div class="preview-pill" id="previewFlightLabel">Flight route preview</div>
+          <div class="preview-pill" id="previewStats">0 pts</div>
+        </div>
+        <div class="preview-legend">
+          <div class="preview-pill" id="previewCoord"><span>Coordinates:</span> N/A</div>
+          <div class="preview-hint">Tap to open full view</div>
+        </div>
+      </div>
+      <div class="map-controls" style="display:none">
+        <button id="rewindBtn" class="btn" title="Rewind 5 seconds" aria-label="Rewind 5 seconds"></button>
+        <button id="playBtn" class="btn" title="Play" aria-label="Play/Pause"></button>
+        <button id="pauseBtn" class="btn" title="Pause" aria-label="Pause" style="display:none" hidden></button>
+        <button id="ffBtn" class="btn" title="Forward 5 seconds" aria-label="Forward 5 seconds"></button>
+        <button id="stopBtn" class="btn" title="Stop" aria-label="Stop"></button>
+        <button id="shareLocationBtn" class="btn" title="Share current location" aria-label="Share current location"></button>
+        <span style="width:8px"></span>
+        <input id="timeSlider" type="range" class="time-slider" min="0" max="100" value="0">
+        <div style="min-width:120px;text-align:right">
+          <div id="timeLabel">00:00:00.000</div>
+        </div>
+      </div>
+      <div id="mapCoordinate" class="map-coordinate" aria-live="polite">
+        <span>Coordinates:</span> N/A
+      </div>
+    </div>
+
+    <div id="telemetryCard" class="card" style="display:none">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Goggles Telemetry</div>
+          <div class="card-sub">ข้อมูลจาก goggles ตามช่วงเวลา</div>
+        </div>
+      </div>
+      <div id="telemetryNotice" class="telemetry-notice"></div>
+      <div id="telemetrySummary" class="telemetry-grid"></div>
+      <div class="timeline">
+        <label class="field-label" for="telemetrySlider">Timeline</label>
+        <input id="telemetrySlider" type="range" class="time-slider" min="0" max="0" value="0">
+      </div>
+      <div id="telemetryCurrent" class="telemetry-current"></div>
+    </div>
+
+    <div id="filterCard" class="card" style="display:none">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><span class="step">3</span>เลือกข้อมูลและส่งออก</div>
+          <div class="card-sub">Metadata ที่ตรวจพบ — เลือกฟิลด์ที่ต้องการแสดงในไฟล์</div>
+        </div>
+        <div class="actions">
+          <button id="selectAll" class="btn btn-ghost">Select all</button>
+          <button id="deselectAll" class="btn btn-ghost">Clear</button>
+        </div>
+      </div>
+      <div class="checkbox-group" id="keyContainer"></div>
+      <div class="actions actions-split">
+        <span class="hint">ดาวน์โหลด</span>
+        <div class="actions">
+          <button id="downloadBtn" class="btn btn-primary">SRT</button>
+          <button id="downloadAssBtn" class="btn">ASS</button>
+          <button id="downloadVideoBtn" class="btn">Video (MP4)</button>
+        </div>
+      </div>
+    </div>
+    </section>
+  </main>
+
+  <div id="fullscreenOverlay" class="fullscreen-overlay" aria-hidden="true">
+    <div class="fullscreen-stage">
+      <div id="fullscreenMap"></div>
+      <div class="fullscreen-ui">
+        <div class="fullscreen-meta">
+          <div id="fullscreenCoordinates" class="coord-badge"><span>Coordinates:</span> N/A</div>
+          <div id="fullscreenTimeLabel" class="coord-badge" style="margin-top:8px;">00:00:00.000</div>
+        </div>
+        <div class="fullscreen-actions">
+          <button id="collapseFullscreenBtn" class="collapse-btn" type="button" aria-label="ย้อนกลับ">ย้อนกลับ</button>
+        </div>
+        <div class="fullscreen-bottom">
+          <div class="fullscreen-controls">
+            <button id="fsRewindBtn" class="mini-btn" type="button" aria-label="Rewind 5 seconds">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7L5 12l6 5V7zm7 0l-6 5 6 5V7z"/></svg>
+            </button>
+            <button id="fsPlayBtn" class="mini-btn" type="button" aria-label="Play">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7V5z"/></svg>
+            </button>
+            <button id="fsForwardBtn" class="mini-btn" type="button" aria-label="Forward 5 seconds">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 7l6 5-6 5V7zm-7 0l6 5-6 5V7z"/></svg>
+            </button>
+            <button id="fsStopBtn" class="mini-btn" type="button" aria-label="Stop">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+            </button>
+            <button id="fsShareBtn" class="mini-btn" type="button" aria-label="Share current location">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"/><path d="M10 14L19 5"/><path d="M19 13v5H5V5h5"/></svg>
+            </button>
+          </div>
+          <input id="fullscreenSlider" class="fullscreen-slider" type="range" min="0" max="100" value="0" aria-label="Playback timeline">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const googleMapsApiKey = window.GOOGLE_MAPS_API_KEY || (window.googleMapsConfig && window.googleMapsConfig.apiKey) || '';
+    let resolveGoogleMaps;
+    let rejectGoogleMaps;
+    window.googleMapsReady = new Promise((resolve, reject) => {
+      resolveGoogleMaps = resolve;
+      rejectGoogleMaps = reject;
+    });
+    window.googleMapsCallback = () => resolveGoogleMaps();
+    window.googleMapsError = () => rejectGoogleMaps(new Error('Google Maps could not be loaded. Check the API key and allowed referrer.'));
+    if (!googleMapsApiKey) {
+      window.googleMapsError();
+    }
+    const googleMapsScript = document.createElement('script');
+    googleMapsScript.async = true;
+    googleMapsScript.defer = true;
+    googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsApiKey)}&loading=async&callback=googleMapsCallback`;
+    googleMapsScript.onerror = window.googleMapsError;
+    if (googleMapsApiKey) document.head.appendChild(googleMapsScript);
+  </script>
+  <script>
+    (function () {
+      function parseTime(timeStr) {
+        if (!timeStr) return null;
+        const m = timeStr.match(/(\d{2}):(\d{2}):(\d{2})[.,](\d{3})/);
+        if (!m) return null;
+        return parseInt(m[1], 10) * 3600000 + parseInt(m[2], 10) * 60000 + parseInt(m[3], 10) * 1000 + parseInt(m[4], 10);
+      }
+
+      function formatTime(msTotal) {
+        let ms = Math.max(0, Math.round(msTotal));
+        const h = Math.floor(ms / 3600000); ms %= 3600000;
+        const min = Math.floor(ms / 60000); ms %= 60000;
+        const s = Math.floor(ms / 1000);
+        const msPart = ms % 1000;
+        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(msPart).padStart(3, '0')}`;
+      }
+
+      function parseSrtToBlocks(srtText) {
+        const normalized = (srtText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '').trim();
+        if (!normalized) return [];
+        const blocks = [];
+        const rawBlocks = normalized.split(/\n{2,}/);
+
+        for (const raw of rawBlocks) {
+          const lines = raw.split('\n').map(line => line.replace(/\uFEFF/g, '').trimEnd());
+          if (lines.length < 2) continue;
+
+          let id = null;
+          let timeLineIndex = 0;
+          if (/^\d+$/.test(lines[0].trim())) {
+            id = lines[0].trim();
+            timeLineIndex = 1;
+          }
+
+          const timeLine = lines[timeLineIndex];
+          const timeMatch = timeLine && timeLine.match(/(\d{2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3})/);
+          if (!timeMatch) continue;
+
+          const startMs = parseTime(timeMatch[1]);
+          const endMs = parseTime(timeMatch[2]);
+          if (startMs === null || endMs === null) continue;
+
+          const text = lines.slice(timeLineIndex + 1).join('\n').trim();
+          blocks.push({ id, startMs, endMs, rawText: text, metadata: null, renderText: text });
+        }
+        return blocks;
+      }
+
+      function splitRenderLines(text) {
+        return String(text || '')
+          .replace(/<\/?font\b[^>]*>/gi, '')
+          .replace(/\r/g, '')
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean);
+      }
+
+      function buildSrtCueText(block) {
+        const lines = splitRenderLines(block.renderText !== undefined ? block.renderText : block.rawText);
+        const coordinateLine = lines.find(line => /^(Lat:|Longitude:|Latitude:|Lon:)/i.test(line) || /\|\s*Lon:/i.test(line));
+        const heightLine = lines.find(line => /^(Height:|Alt:)/i.test(line));
+        const dateLine = lines.find(line => /^Date\/Time:/i.test(line) || /^Date:/i.test(line) || /^Time:/i.test(line));
+        const coreLines = new Set([coordinateLine, heightLine, dateLine].filter(Boolean));
+        const extraLines = lines.filter(line => !coreLines.has(line));
+
+        const pieces = [];
+        if (coordinateLine) pieces.push(coordinateLine);
+        if (dateLine) pieces.push(dateLine);
+        pieces.push(...extraLines);
+        if (heightLine) pieces.push(heightLine);
+
+        if (pieces.length) return pieces.join(' | ');
+        return lines.join(' | ');
+      }
+
+      function blocksToSrt(blocks) {
+        const parts = [];
+        let cueId = 1;
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          const text = buildSrtCueText(b);
+          if (!text || !text.trim()) continue;
+          parts.push(`${cueId++}\n${formatTime(b.startMs)} --> ${formatTime(b.endMs)}\n${text}`);
+        }
+        return parts.join('\n\n') + '\n';
+      }
+
+      function assTime(msTotal) {
+        let ms = Math.max(0, Math.round(msTotal));
+        const h = Math.floor(ms / 3600000); ms %= 3600000;
+        const min = Math.floor(ms / 60000); ms %= 60000;
+        const sec = Math.floor(ms / 1000);
+        const centis = Math.floor((ms % 1000) / 10);
+        return `${h}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(centis).padStart(2, '0')}`;
+      }
+
+      function assText(value) {
+        return String(value || '')
+          .replace(/<\/?font\b[^>]*>/gi, '')
+          .replace(/[{}]/g, '')
+          .replace(/\r?\n/g, '\\N');
+      }
+
+      function blocksToAss(blocks) {
+        const header = [
+          '[Script Info]',
+          'ScriptType: v4.00+',
+          'PlayResX: 1920',
+          'PlayResY: 1080',
+          'ScaledBorderAndShadow: yes',
+          '',
+          '[V4+ Styles]',
+          'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+          'Style: Default,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,40,40,35,1',
+          'Style: Coordinate,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,1,40,40,35,1',
+          'Style: Height,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,3,40,40,35,1',
+          'Style: Altitude,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,3,40,40,95,1',
+          'Style: DateTime,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,7,40,40,35,1',
+          'Style: Extra,Arial,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,9,40,40,35,1',
+          '',
+          '[Events]',
+          'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+        ];
+        const events = [];
+
+        for (const b of blocks) {
+          const lines = splitRenderLines(b.renderText !== undefined ? b.renderText : b.rawText);
+          if (!lines.length) continue;
+
+          const start = assTime(b.startMs);
+          const end = assTime(b.endMs);
+          const extraLines = [];
+
+          for (const line of lines) {
+            if (/^(Lat|Longitude|Longitude\s*:|Latitude|Lon)/i.test(line) || /\|\s*Lon:/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},Coordinate,,0,0,0,,${assText(line)}`);
+            } else if (/^Height\b|^Alt\b/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},Height,,0,0,0,,${assText(line)}`);
+            } else if (/^Date\b|^Time\b|Date\/Time/i.test(line)) {
+              events.push(`Dialogue: 0,${start},${end},DateTime,,0,0,0,,${assText(line)}`);
+            } else {
+              extraLines.push(line);
+            }
+          }
+
+          if (extraLines.length) {
+            // Join lines with ASS newline escape sequence
+            events.push(`Dialogue: 0,${start},${end},Extra,,0,0,0,,${assText(extraLines.join('\n'))}`);
+          }
+        }
+
+        return `${header.join('\n')}\n${events.join('\n')}\n`;
+      }
+
+      function mergeFileTexts(fileTexts, options) {
+        const allFiles = (fileTexts || []).slice();
+        if (options && options.ordering === 'name') {
+          allFiles.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        let cumulativeOffset = 0;
+        const merged = [];
+
+        for (const f of allFiles) {
+          const blocks = parseSrtToBlocks(f.text);
+          if (!blocks.length) continue;
+
+          const minStart = Math.min(...blocks.map(b => b.startMs));
+          const maxEnd = Math.max(...blocks.map(b => b.endMs));
+
+          if (options && options.policy === 'keep') {
+            for (const b of blocks) merged.push({ ...b });
+          } else {
+            const shift = cumulativeOffset - minStart;
+            for (const b of blocks) {
+              merged.push({
+                ...b,
+                startMs: b.startMs + shift,
+                endMs: b.endMs + shift,
+                renderText: b.renderText || b.rawText
+              });
+            }
+            cumulativeOffset += (maxEnd - minStart) + ((options && options.gapMs) || 0);
+          }
+        }
+
+        merged.sort((a, b) => a.startMs - b.startMs);
+        return merged;
+      }
+
+      const bracketKeyValueRegex = /\[\s*([a-zA-Z][a-zA-Z0-9 _-]*?)\s*:\s*([^\]]+)\]/g;
+      const inlineKeyValueRegex = /(?:^|\s)([a-zA-Z][a-zA-Z0-9_-]*)\s*:\s*(.*?)(?=\s+[a-zA-Z][a-zA-Z0-9_-]*\s*:|$)/g;
+      const latLonRegex = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+
+      function normalizeValue(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return raw;
+        const numberWithOptionalUnit = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?(?:[a-zA-Z%/]+)?$/;
+        if (!numberWithOptionalUnit.test(raw)) return raw;
+        const numeric = Number(raw.replace(/[^0-9.\-+eE]/g, ''));
+        return Number.isFinite(numeric) ? numeric : raw;
+      }
+
+      function addMetadataValue(map, rawKey, rawValue) {
+        const key = rawKey.trim().toLowerCase().replace(/[\s-]+/g, '_');
+        const value = normalizeValue(rawValue);
+        if (key && value !== '') map[key] = value;
+      }
+
+      function extractMetadataFromText(text) {
+        const map = {};
+        let m;
+
+        // Regex for YYYY-MM-DD HH:MM:SS.ms format
+        const dateTimeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[.,]\d{3})/;
+        const dateTimeMatch = text.match(dateTimeRegex);
+        if (dateTimeMatch && dateTimeMatch[1]) {
+          addMetadataValue(map, 'datetime', dateTimeMatch[1]);
+        }
+
+        bracketKeyValueRegex.lastIndex = 0;
+        while ((m = bracketKeyValueRegex.exec(text)) !== null) {
+          addMetadataValue(map, m[1], m[2]);
+        }
+
+        inlineKeyValueRegex.lastIndex = 0;
+        while ((m = inlineKeyValueRegex.exec(text)) !== null) {
+          addMetadataValue(map, m[1], m[2]);
+        }
+
+        const latlon = text.match(latLonRegex);
+        if (latlon) {
+          map.lat = parseFloat(latlon[1]);
+          map.lon = parseFloat(latlon[2]);
+        }
+
+        // normalize common latitude/longitude names into numeric lat/lon
+        if (map.latitude !== undefined && map.lat === undefined) {
+          const n = Number(map.latitude);
+          if (Number.isFinite(n)) map.lat = n;
+        }
+        if (map.longitude !== undefined && map.lon === undefined) {
+          const n = Number(map.longitude);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+        if (map.lng !== undefined && map.lon === undefined) {
+          const n = Number(map.lng);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+        if (map.lat !== undefined) {
+          const n = Number(map.lat);
+          if (Number.isFinite(n)) map.lat = n;
+        }
+        if (map.lon !== undefined) {
+          const n = Number(map.lon);
+          if (Number.isFinite(n)) map.lon = n;
+        }
+
+        if (map.altitude !== undefined) {
+          map.altitude = Number(map.altitude);
+          if (map.height === undefined && Number.isFinite(map.altitude)) map.height = map.altitude;
+        }
+        if (map.alt !== undefined) map.height = map.alt;
+        if (map.rel_alt !== undefined) map.height = map.rel_alt;
+
+        return map;
+      }
+
+      function classifyTelemetrySource(blocks) {
+        const keys = new Set();
+        let hasCoordinates = false;
+        for (const block of blocks) {
+          const metadata = block.metadata || {};
+          Object.keys(metadata).forEach(key => keys.add(key));
+          if (Number.isFinite(Number(metadata.lat)) && Number.isFinite(Number(metadata.lon))) hasCoordinates = true;
+        }
+        const hasGogglesSignature = keys.has('glsbat') || keys.has('bitrate') || (keys.has('hs') && keys.has('vs'));
+        const hasFPVDroneSignature = keys.has('roll') || keys.has('pitch') || keys.has('yaw');
+
+        if (hasCoordinates) return 'drone-camera';
+        if (hasGogglesSignature && !hasFPVDroneSignature) return 'goggles-telemetry';
+        return 'generic';
+      }
+
+      function shouldApplyTimeAdjustmentForSource(source) {
+        return source === 'goggles-telemetry' || source === 'drone-flight-record';
+      }
+
+      function formatDateTimeUTC(date, withMs) {
+        const y = date.getUTCFullYear();
+        const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        const h = String(date.getUTCHours()).padStart(2, '0');
+        const mi = String(date.getUTCMinutes()).padStart(2, '0');
+        const s = String(date.getUTCSeconds()).padStart(2, '0');
+        const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+        return withMs ? `${y}-${mo}-${d} ${h}:${mi}:${s},${ms}` : `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+      }
+
+      function formatDateUTC(date) {
+        const y = date.getUTCFullYear();
+        const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        return `${y}-${mo}-${d}`;
+      }
+
+      function formatTimeUTC(date, withMs) {
+        const h = String(date.getUTCHours()).padStart(2, '0');
+        const mi = String(date.getUTCMinutes()).padStart(2, '0');
+        const s = String(date.getUTCSeconds()).padStart(2, '0');
+        const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+        return withMs ? `${h}:${mi}:${s}.${ms}` : `${h}:${mi}:${s}`;
+      }
+
+      function parseDateTimeAsUTC(value) {
+        const text = String(value || '').trim();
+        if (!text) return null;
+
+        const full = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,3}))?$/);
+        if (full) {
+          const msRaw = full[7] || '0';
+          const ms = Number(msRaw.padEnd(3, '0'));
+          return {
+            date: new Date(Date.UTC(Number(full[1]), Number(full[2]) - 1, Number(full[3]), Number(full[4]), Number(full[5]), Number(full[6]), ms)),
+            hasMs: Boolean(full[7])
+          };
+        }
+
+        const isoMs = Date.parse(text);
+        if (Number.isFinite(isoMs)) {
+          return { date: new Date(isoMs), hasMs: /[.,]\d+/.test(text) };
+        }
+
+        return null;
+      }
+
+      function parseDateAndTimeAsUTC(dateValue, timeValue) {
+        const dateText = String(dateValue || '').trim();
+        const timeText = String(timeValue || '').trim();
+        if (!dateText || !timeText) return null;
+
+        const d = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const t = timeText.match(/^(\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,3}))?$/);
+        if (!d || !t) return null;
+
+        const msRaw = t[4] || '0';
+        const ms = Number(msRaw.padEnd(3, '0'));
+        return {
+          date: new Date(Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]), Number(t[3]), ms)),
+          hasMs: Boolean(t[4])
+        };
+      }
+
+      function shiftMetadataTimestamps(meta, offsetHours) {
+        if (!meta || typeof meta !== 'object') return;
+        const offsetMs = Number(offsetHours) * 3600000;
+        if (!Number.isFinite(offsetMs) || offsetMs === 0) return;
+
+        if (meta.datetime !== undefined) {
+          const parsed = parseDateTimeAsUTC(meta.datetime);
+          if (parsed && parsed.date) {
+            meta.datetime = formatDateTimeUTC(new Date(parsed.date.getTime() + offsetMs), parsed.hasMs);
+          }
+        }
+
+        if (meta.timestamp !== undefined) {
+          const parsed = parseDateTimeAsUTC(meta.timestamp);
+          if (parsed && parsed.date) {
+            meta.timestamp = formatDateTimeUTC(new Date(parsed.date.getTime() + offsetMs), parsed.hasMs);
+          }
+        }
+
+        if (meta.date !== undefined && meta.time !== undefined) {
+          const parsed = parseDateAndTimeAsUTC(meta.date, meta.time);
+          if (parsed && parsed.date) {
+            const shifted = new Date(parsed.date.getTime() + offsetMs);
+            meta.date = formatDateUTC(shifted);
+            meta.time = formatTimeUTC(shifted, parsed.hasMs);
+          }
+        }
+      }
+
+      function applyTimezoneOffsetToBlocks(blocks, offsetHours) {
+        for (const b of blocks || []) {
+          if (!b.metadata) continue;
+          shiftMetadataTimestamps(b.metadata, offsetHours);
+        }
+      }
+
+      function parseFlightTimeSeconds(rawValue) {
+        const numeric = Number(rawValue);
+        if (Number.isFinite(numeric)) return numeric;
+
+        const text = String(rawValue || '').trim();
+        if (!text) return null;
+        const parts = text.split(':').map(v => Number(v));
+        if (parts.some(v => !Number.isFinite(v))) return null;
+        if (parts.length === 2) return (parts[0] * 60) + parts[1];
+        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        return null;
+      }
+
+      function formatFlightTimeMMSS(rawValue) {
+        const seconds = parseFlightTimeSeconds(rawValue);
+        if (!Number.isFinite(seconds)) return String(rawValue);
+        const totalSeconds = Math.max(0, Math.round(seconds));
+        const minutes = Math.floor(totalSeconds / 60);
+        const remainSeconds = totalSeconds % 60;
+        return `${minutes}:${String(remainSeconds).padStart(2, '0')}`;
+      }
+
+      function computeFlightTimeFromBlocks(blocks) {
+        if (!Array.isArray(blocks) || !blocks.length) return false;
+        const firstStartMs = Number(blocks[0].startMs);
+        if (!Number.isFinite(firstStartMs)) return false;
+
+        let applied = false;
+        for (const block of blocks) {
+          if (!block) continue;
+          block.metadata = block.metadata || {};
+          const seconds = (Number(block.startMs) - firstStartMs) / 1000;
+          if (!Number.isFinite(seconds)) continue;
+          block.metadata.flight_time = Number(Math.max(0, seconds).toFixed(2));
+          applied = true;
+        }
+        return applied;
+      }
+
+      function getNumericValue(metadata, key) {
+        const value = metadata && metadata[key];
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+      }
+
+      function formatTelemetryValue(value, unit) {
+        return value === null || value === undefined ? 'N/A' : `${value.toFixed(1)}${unit}`;
+      }
+
+      function renderGogglesTelemetry(blocks) {
+        const telemetryCard = document.getElementById('telemetryCard');
+        const notice = document.getElementById('telemetryNotice');
+        const summary = document.getElementById('telemetrySummary');
+        const slider = document.getElementById('telemetrySlider');
+        const current = document.getElementById('telemetryCurrent');
+        const valuesFor = key => blocks.map(block => getNumericValue(block.metadata, key)).filter(value => value !== null);
+        const maximum = key => {
+          const values = valuesFor(key);
+          return values.length ? Math.max(...values) : null;
+        };
+        const minimum = key => {
+          const values = valuesFor(key);
+          return values.length ? Math.min(...values) : null;
+        };
+        const average = key => {
+          const values = valuesFor(key);
+          return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+        };
+        const metrics = [
+          ['Max height', formatTelemetryValue(maximum('height'), ' m')],
+          ['Max distance', formatTelemetryValue(maximum('distance'), ' m')],
+          ['Max horizontal speed', formatTelemetryValue(maximum('hs'), ' m/s')],
+          ['Max vertical speed', formatTelemetryValue(maximum('vs'), ' m/s')],
+          ['Average bitrate', formatTelemetryValue(average('bitrate'), ' Mbps')],
+          ['Delay range', minimum('delay') === null ? 'N/A' : `${minimum('delay').toFixed(0)}-${maximum('delay').toFixed(0)} ms`],
+          ['GPS satellites', minimum('gpsnum') === null ? 'N/A' : `${minimum('gpsnum').toFixed(0)}-${maximum('gpsnum').toFixed(0)}`]
+        ];
+        notice.textContent = `Goggles telemetry detected: ${blocks.length} cues. GPS coordinates are not present, so no map or track is shown.`;
+        summary.innerHTML = metrics.map(([label, value]) => `<div class="telemetry-metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
+        slider.min = '0';
+        slider.max = String(Math.max(0, blocks.length - 1));
+        slider.value = '0';
+        function updateCurrent(index) {
+          const block = blocks[index] || blocks[0];
+          if (!block) return;
+          const metadata = block.metadata || {};
+          const fields = [
+            ['Time', formatTime(block.startMs)], ['Height', formatTelemetryValue(getNumericValue(metadata, 'height'), ' m')],
+            ['Distance', formatTelemetryValue(getNumericValue(metadata, 'distance'), ' m')], ['Horizontal speed', formatTelemetryValue(getNumericValue(metadata, 'hs'), ' m/s')],
+            ['Vertical speed', formatTelemetryValue(getNumericValue(metadata, 'vs'), ' m/s')], ['Goggles battery', formatTelemetryValue(getNumericValue(metadata, 'glsbat'), ' V')],
+            ['Delay', formatTelemetryValue(getNumericValue(metadata, 'delay'), ' ms')], ['Bitrate', formatTelemetryValue(getNumericValue(metadata, 'bitrate'), ' Mbps')],
+            ['GPS satellites', formatTelemetryValue(getNumericValue(metadata, 'gpsnum'), '')], ['Signal', metadata.signal || 'N/A']
+          ];
+          current.innerHTML = `<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${fields.map(([label, value]) => `<tr><td>${label}</td><td>${value}</td></tr>`).join('')}</tbody></table>`;
+        }
+        slider.oninput = event => updateCurrent(Number(event.target.value));
+        updateCurrent(0);
+        telemetryCard.style.display = 'block';
+      }
+
+      function renderTextFromMetadata(originalText, meta) {
+        const m = meta || {};
+        const lines = [];
+
+        const lat = m.lat ?? m.latitude;
+        const lon = m.lon ?? m.longitude;
+        if (lat !== undefined && lon !== undefined) {
+          lines.push(`Lat: ${Number(lat).toFixed(6)} | Lon: ${Number(lon).toFixed(6)}`);
+        }
+
+        // Height above launch/ground point (relative height)
+        const heightValue = m.height;
+        if (heightValue !== undefined && heightValue !== null && heightValue !== '') {
+          lines.push(`Height: ${Number(heightValue).toFixed(2)}`);
+        }
+
+        // Altitude above sea level (separate value from relative height)
+        const altValue = m.alt ?? m.altitude;
+        if (altValue !== undefined && altValue !== null && altValue !== '') {
+          lines.push(`Altitude: ${Number(altValue).toFixed(2)}`);
+        }
+
+        const dateValue = m.date ?? m.datetime ?? m.timestamp ?? m.time;
+        if (dateValue !== undefined && dateValue !== null && dateValue !== '') {
+          const formattedDate = String(dateValue).replace('T', ' ');
+          if (/\d{4}-\d{2}-\d{2}/.test(formattedDate)) {
+            lines.push(`Date/Time: ${formattedDate}`);
+          } else if (m.date && m.time) {
+            lines.push(`Date/Time: ${m.date} ${m.time}`);
+          } else {
+            lines.push(`Date/Time: ${formattedDate}`);
+          }
+        }
+
+        const orderedKeys = ['speed', 'heading', 'yaw', 'battery', 'gpsnum', 'signal', 'temperature', 'distance', 'flight_distance', 'flight_time', 'index'];
+        for (const key of orderedKeys) {
+          if (m[key] === undefined || m[key] === null || m[key] === '') continue;
+
+          if (key === 'flight_time') {
+            lines.push(`Flight Time: ${formatFlightTimeMMSS(m[key])}`);
+            continue;
+          }
+
+          let value = Number(m[key]);
+          if (key === 'speed') value *= 3.6; // Convert m/s from DJI to km/h
+          const decimals = key === 'flight_distance' ? 3 : (value % 1 === 0 ? 0 : 2);
+          const text = Number.isFinite(value) ? value.toFixed(decimals) : String(m[key]);
+          const label = key === 'gpsnum' ? 'GPS Num' : key === 'flight_time' ? 'Flight Time'
+            : key === 'distance' ? 'Distance' : key === 'flight_distance' ? 'Flight Distance'
+            : key.charAt(0).toUpperCase() + key.slice(1);
+          const unit = key === 'speed' ? ' km/h'
+            : key === 'distance' ? ' m' : key === 'flight_distance' ? ' km' : '';
+          lines.push(`${label}: ${text}${unit}`);
+        }
+
+        const extraKeys = Object.keys(m)
+          .filter(key => !['lat', 'lon', 'latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'datetime', 'timestamp', 'time', ...orderedKeys].includes(String(key).toLowerCase()))
+          .sort();
+        for (const key of extraKeys) {
+          if (m[key] === undefined || m[key] === null || m[key] === '') continue;
+          const rawValue = m[key];
+          const numericValue = Number(rawValue);
+          const text = Number.isFinite(numericValue) && rawValue !== '' ? numericValue.toFixed(2) : String(rawValue);
+          lines.push(`${key}: ${text}`);
+        }
+
+        if (lines.length) return lines.join('\n');
+
+        const fallback = String(originalText || '').split('\n').map(line => line.trim()).filter(Boolean);
+        return fallback.join('\n');
+      }
+
+      function applyAltitudeCorrection(blocks, opts) {
+        const options = Object.assign({ scale: 1, baseOffset: null, auto: true }, opts || {});
+        if (options.auto && options.baseOffset === null) {
+          const firstWithHeight = blocks.find(b => b.metadata && b.metadata.height !== undefined);
+          options.baseOffset = firstWithHeight ? Number(firstWithHeight.metadata.height) || 0 : 0;
+        }
+
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          if (b.metadata.height !== undefined && b.metadata.height !== null) {
+            const raw = Number(b.metadata.height);
+            const corrected = ((raw - (options.baseOffset || 0)) * (options.scale || 1));
+            b.metadata.height = Number(corrected.toFixed(2));
+          }
+        }
+
+        for (const b of blocks) {
+          b.renderText = renderTextFromMetadata(b.rawText, b.metadata);
+        }
+
+        return blocks;
+      }
+
+      function filterMetadata(blocks, allowedKeys) {
+        const allowSet = new Set((allowedKeys || []).map(k => String(k).toLowerCase()));
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          const kept = {};
+          Object.keys(b.metadata).forEach(k => {
+            if (allowSet.has(String(k).toLowerCase())) kept[k] = b.metadata[k];
+          });
+          b.metadata = kept;
+          b.renderText = renderTextFromMetadata(b.rawText, b.metadata);
+        }
+        return blocks;
+      }
+
+      // Great-circle distance between two GPS points, in meters (haversine formula)
+      function haversineDistanceM(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const toRad = deg => deg * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+      }
+
+      // Adds distance-from-first-fix and cumulative flight distance to blocks that carry lat/lon metadata
+      function computeDistanceMetrics(blocks) {
+        let homeLat = null, homeLon = null;
+        let prevLat = null, prevLon = null;
+        let cumulativeM = 0;
+        let found = false;
+
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          const lat = Number(b.metadata.lat ?? b.metadata.latitude);
+          const lon = Number(b.metadata.lon ?? b.metadata.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+          if (homeLat === null) { homeLat = lat; homeLon = lon; }
+          if (prevLat !== null) cumulativeM += haversineDistanceM(prevLat, prevLon, lat, lon);
+          prevLat = lat; prevLon = lon;
+
+          b.metadata.distance = Number(haversineDistanceM(homeLat, homeLon, lat, lon).toFixed(2));
+          b.metadata.flight_distance = Number((cumulativeM / 1000).toFixed(3));
+          found = true;
+        }
+        return found;
+      }
+
+      function extractGPSTrack(blocks) {
+        const track = [];
+        for (const b of blocks) {
+          if (!b.metadata) continue;
+          // accept several possible key names; metadata should already be normalized
+          const getNum = (obj, ...names) => {
+            for (const n of names) {
+              if (obj[n] !== undefined) {
+                const v = Number(obj[n]);
+                if (Number.isFinite(v)) return v;
+              }
+            }
+            return undefined;
+          };
+
+          const lat = getNum(b.metadata, 'lat', 'latitude', 'y');
+          const lon = getNum(b.metadata, 'lon', 'longitude', 'lng', 'x');
+          if (lat !== undefined && lon !== undefined) {
+            track.push({ tMs: b.startMs, lat: lat, lon: lon, extra: b.metadata });
+          }
+        }
+        track.sort((a, b) => a.tMs - b.tMs);
+        return track;
+      }
+
+      function normalizeHeading(value) {
+        let heading = Number(value);
+        if (!Number.isFinite(heading)) return null;
+        if (Math.abs(heading) > 360) heading /= 10;
+        return ((heading % 360) + 360) % 360;
+      }
+
+      function extractTrackHeading(point) {
+        const extra = point && point.extra ? point.extra : {};
+        const names = ['heading', 'yaw', 'hdg', 'course', 'bearing'];
+        for (const key of names) {
+          if (extra[key] !== undefined) {
+            const normalized = normalizeHeading(extra[key]);
+            if (normalized !== null) return normalized;
+          }
+        }
+        return null;
+      }
+
+      function setMarkerVisual(marker, mode, heading) {
+        if (!marker || typeof marker.setIcon !== 'function' || !window.google || !google.maps) return;
+
+        if (mode === 'arrow' && Number.isFinite(heading)) {
+          marker.setIcon({
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            fillColor: '#ff8a1c',
+            fillOpacity: 1,
+            strokeColor: '#ffd1a6',
+            strokeWeight: 1.6,
+            rotation: heading,
+            anchor: new google.maps.Point(0, 2)
+          });
+          return;
+        }
+
+        marker.setIcon({
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#ff8a1c',
+          fillOpacity: 1,
+          strokeColor: '#ffd1a6',
+          strokeWeight: 2
+        });
+      }
+
+      function resolveMarkerMode(source, track) {
+        if (source !== 'drone-flight-record') return 'dot';
+        if (!Array.isArray(track) || !track.length) return 'dot';
+        return track.some(point => extractTrackHeading(point) !== null) ? 'arrow' : 'dot';
+      }
+
+      function createGoogleMap(containerId, options) {
+        const center = options && options.center ? options.center : [0, 0];
+        const googleCenter = { lat: center[0], lng: center[1] };
+        // Touch users pinch/drag instead; these buttons overlap the timeline on phones
+        const isTouch = window.matchMedia('(pointer: coarse)').matches;
+        const map = new google.maps.Map(document.getElementById(containerId), {
+          center: googleCenter,
+          zoom: options && options.zoom ? Math.min(options.zoom, 20) : 15,
+          maxZoom: 19,
+          mapTypeId: 'satellite',
+          tilt: 0,
+          heading: 0,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: true,
+          gestureHandling: 'greedy',
+          disableDoubleClickZoom: false,
+          zoomControl: !isTouch,
+          cameraControl: !isTouch
+        });
+        if (typeof map.setTilt === 'function') map.setTilt(0);
+        if (typeof map.setHeading === 'function') map.setHeading(0);
+        const marker = new google.maps.Marker({
+          map,
+          position: googleCenter,
+          title: 'Drone'
+        });
+        setMarkerVisual(marker, 'dot', null);
+        const polyline = new google.maps.Polyline({
+          map,
+          path: [],
+          strokeColor: '#00ffcc',
+          strokeOpacity: 1,
+          strokeWeight: 3
+        });
+        const maxZoomService = new google.maps.MaxZoomService();
+        let lastZoomLookup = '';
+        function updateSatelliteZoomLimit() {
+          const mapCenter = map.getCenter();
+          if (!mapCenter) return;
+          const lookupKey = `${mapCenter.lat().toFixed(3)},${mapCenter.lng().toFixed(3)}`;
+          if (lookupKey === lastZoomLookup) return;
+          lastZoomLookup = lookupKey;
+          maxZoomService.getMaxZoomAtLatLng(mapCenter, response => {
+            const availableZoom = response.status === 'OK' && Number.isFinite(response.zoom) ? response.zoom : 18;
+            map.setOptions({ maxZoom: Math.max(1, Math.min(19, availableZoom)) });
+          });
+        }
+        map.addListener('idle', updateSatelliteZoomLimit);
+        updateSatelliteZoomLimit();
+
+          // Responsive map sizing: cap height for the normal map, but keep fullscreen map at native viewport size
+          const container = document.getElementById(containerId);
+          const isFullscreenMap = containerId === 'fullscreenMap';
+          function resizeSquare() {
+            try {
+              if (!container) return;
+              if (isFullscreenMap) {
+                container.style.width = '100%';
+                container.style.height = '100%';
+                google.maps.event.trigger(map, 'resize');
+                return;
+              }
+              const containerWidth = Math.max(240, container.clientWidth || 0);
+              const maxAllowed = Math.max(200, Math.floor(window.innerHeight * 0.72));
+              const h = Math.min(containerWidth, maxAllowed);
+              container.style.height = h + 'px';
+              google.maps.event.trigger(map, 'resize');
+            } catch (e) {
+              try { google.maps.event.trigger(map, 'resize'); } catch (_) {}
+            }
+          }
+          resizeSquare();
+          window.addEventListener('resize', resizeSquare);
+          window.addEventListener('orientationchange', function(){ setTimeout(resizeSquare, 200); });
+
+        return { map, marker, poly: polyline, markerMode: 'dot' };
+      }
+
+      function showTrackOnMap(mapObj, track) {
+        if (!mapObj || !track || !track.length) return;
+        const { map, marker, poly } = mapObj;
+        const path = track.map(p => ({ lat: p.lat, lng: p.lon }));
+        const initialHeading = extractTrackHeading(track[0]);
+        setMarkerVisual(marker, mapObj.markerMode || 'dot', initialHeading);
+        updateMapCoordinate(track[0].lat, track[0].lon);
+        try { if (poly && typeof poly.setPath === 'function') poly.setPath(path); } catch (e) { console.warn('poly.setPath failed', e); }
+        try { if (marker && typeof marker.setPosition === 'function') marker.setPosition(path[0]); } catch (e) { console.warn('marker.setPosition failed', e); }
+        try {
+          const bounds = new google.maps.LatLngBounds();
+          path.forEach(point => bounds.extend(point));
+          map.fitBounds(bounds);
+          if (typeof map.setTilt === 'function') map.setTilt(0);
+          if (typeof map.setHeading === 'function') map.setHeading(0);
+        } catch (e) {
+          try { if (map && typeof map.setCenter === 'function') map.setCenter(path[0]); }
+          catch (e2) {}
+          try { if (map && typeof map.setTilt === 'function') map.setTilt(0); } catch (_) {}
+          try { if (map && typeof map.setHeading === 'function') map.setHeading(0); } catch (_) {}
+        }
+      }
+
+      function animateOnMap(mapObj, track, opts) {
+        // Returns a controller with play/pause/stop/seek/setSpeed
+        if (!track || track.length < 2) return {
+          play() {}, pause() {}, stop() {}, seekTo() {}, seekBy() {}, setSpeed() {}
+        };
+
+        const { marker } = mapObj;
+        const startTime = track[0].tMs;
+        const endTime = track[track.length - 1].tMs;
+        let virtualTime = startTime;
+        let playing = false;
+        let speed = (opts && opts.speed) || 1;
+        let rafId = null;
+        let lastTs = null;
+        let index = 0;
+
+        function clamp(v) { return Math.max(startTime, Math.min(endTime, v)); }
+
+        function updateMarkerAt(tMs) {
+          // advance index to just before tMs
+          while (index < track.length - 1 && track[index + 1].tMs <= tMs) index++;
+          while (index > 0 && track[index].tMs > tMs) index--;
+          const a = track[index];
+          const b = track[Math.min(index + 1, track.length - 1)];
+          const ratio = (b.tMs === a.tMs) ? 0 : ((tMs - a.tMs) / (b.tMs - a.tMs));
+          const lat = a.lat + (b.lat - a.lat) * ratio;
+          const lon = a.lon + (b.lon - a.lon) * ratio;
+          try { marker.setPosition({ lat, lng: lon }); } catch (e) {}
+          // update marker visual: arrow if heading available, otherwise dot
+          try {
+            const extraMeta = (track[index] && track[index].extra) || {};
+            const h = extractTrackHeading(track[index]);
+            setMarkerVisual(marker, (mapObj && mapObj.markerMode) || 'dot', h);
+            const rLat = (extraMeta.lat !== undefined) ? Number(extraMeta.lat) : lat;
+            const rLon = (extraMeta.lon !== undefined) ? Number(extraMeta.lon) : lon;
+            if (Number.isFinite(rLat) && Number.isFinite(rLon)) {
+              updateMapCoordinate(rLat, rLon);
+              if (marker && typeof marker.setPosition === 'function') marker.setPosition({ lat: rLat, lng: rLon });
+            }
+          } catch (e) { /* ignore DOM update errors */ }
+
+          if (opts && typeof opts.onTick === 'function') opts.onTick({ t: tMs, lat, lon, start: startTime, end: endTime });
+        }
+
+        function loop(ts) {
+          if (!playing) return;
+          if (lastTs === null) lastTs = ts;
+          const dt = ts - lastTs;
+          lastTs = ts;
+          virtualTime = clamp(virtualTime + dt * speed);
+          updateMarkerAt(virtualTime);
+          if (virtualTime >= endTime) { 
+            // ensure final tick reported
+            if (opts && typeof opts.onTick === 'function') try { opts.onTick({ t: endTime, lat: track[track.length-1].lat, lon: track[track.length-1].lon, start: startTime, end: endTime }); } catch(e){}
+            pause(); 
+          }
+          else { rafId = requestAnimationFrame(loop); }
+        }
+
+        function play() {
+          if (playing) return;
+          playing = true; lastTs = null;
+          if (opts && typeof opts.onPlayStateChange === 'function') opts.onPlayStateChange(true);
+          rafId = requestAnimationFrame(loop);
+        }
+        function pause() {
+          const wasPlaying = playing;
+          playing = false;
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          lastTs = null;
+          if (wasPlaying && opts && typeof opts.onPlayStateChange === 'function') opts.onPlayStateChange(false);
+        }
+        function stop() { pause(); virtualTime = startTime; index = 0; updateMarkerAt(virtualTime); }
+        function seekTo(tMs) { virtualTime = clamp(tMs); updateMarkerAt(virtualTime); }
+        function seekBy(delta) { seekTo(virtualTime + delta); }
+        function setSpeed(s) { speed = s; }
+
+        // initialize marker position
+        updateMarkerAt(virtualTime);
+
+        return { play, pause, stop, seekTo, seekBy, setSpeed };
+      }
+
+      // exportTrackToWebM removed — video export disabled per user request
+
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const fileList = document.getElementById('fileList');
+      const processBtn = document.getElementById('processBtn');
+      const mergePolicy = document.getElementById('mergePolicy');
+      const gapMs = document.getElementById('gapMs');
+      const scaleInput = document.getElementById('scale');
+      const offsetType = document.getElementById('offsetType');
+      const manualOffset = document.getElementById('manualOffset');
+      const adjustTimezone = document.getElementById('adjustTimezone');
+      const timezoneOffset = document.getElementById('timezoneOffset');
+      const keyContainer = document.getElementById('keyContainer');
+      const filterCard = document.getElementById('filterCard');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const downloadAssBtn = document.getElementById('downloadAssBtn');
+      const downloadVideoBtn = document.getElementById('downloadVideoBtn');
+      const selectAll = document.getElementById('selectAll');
+      const deselectAll = document.getElementById('deselectAll');
+      const status = document.getElementById('status');
+      const mapCard = document.getElementById('mapCard');
+      const playBtn = document.getElementById('playBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      let currentMapLocation = null;
+      let fullscreenMapObj = null;
+      let fullscreenAnimHandle = null;
+
+      function updateMapCoordinate(lat, lon, targetId = 'mapCoordinate') {
+        const coordinate = document.getElementById(targetId);
+        if (!coordinate || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return;
+        currentMapLocation = { lat: Number(lat), lon: Number(lon) };
+        coordinate.innerHTML = `<span>Coordinates:</span> Lat ${currentMapLocation.lat.toFixed(6)}, Lon ${currentMapLocation.lon.toFixed(6)}`;
+      }
+
+      function renderFlightPathPreview(track) {
+        const canvas = document.getElementById('flightPreviewCanvas');
+        const stats = document.getElementById('previewStats');
+        if (!canvas || !track || !track.length) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.max(340, Math.round((canvas.clientWidth || 800) * dpr));
+        const height = Math.max(200, Math.round((canvas.clientHeight || 420) * dpr));
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const pad = Math.max(18, Math.min(30, canvas.width * 0.05));
+        const allLat = track.map(p => Number(p.lat));
+        const allLon = track.map(p => Number(p.lon));
+        const minLat = Math.min(...allLat);
+        const maxLat = Math.max(...allLat);
+        const minLon = Math.min(...allLon);
+        const maxLon = Math.max(...allLon);
+        const latRange = Math.max(1e-6, maxLat - minLat);
+        const lonRange = Math.max(1e-6, maxLon - minLon);
+
+        const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        bg.addColorStop(0, '#0c2027');
+        bg.addColorStop(0.5, '#07161b');
+        bg.addColorStop(1, '#05090d');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 5; i++) {
+          const y = pad + ((canvas.height - pad * 2) / 5) * i;
+          ctx.beginPath();
+          ctx.moveTo(pad, y);
+          ctx.lineTo(canvas.width - pad, y);
+          ctx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+          const x = pad + ((canvas.width - pad * 2) / 5) * i;
+          ctx.beginPath();
+          ctx.moveTo(x, pad);
+          ctx.lineTo(x, canvas.height - pad);
+          ctx.stroke();
+        }
+
+        const project = (lat, lon) => ({
+          x: pad + ((Number(lon) - minLon) / lonRange) * (canvas.width - pad * 2),
+          y: canvas.height - pad - ((Number(lat) - minLat) / latRange) * (canvas.height - pad * 2)
+        });
+
+        const path = track.map(point => project(point.lat, point.lon));
+        ctx.beginPath();
+        path.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#00ffd1';
+        ctx.shadowColor = 'rgba(0,255,209,0.8)';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        const start = path[0];
+        const end = path[path.length - 1];
+        ctx.fillStyle = '#7fffd4';
+        ctx.beginPath();
+        ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ff9f43';
+        ctx.beginPath();
+        ctx.arc(end.x, end.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (stats) stats.textContent = `${track.length} pts`;
+        const first = track[0];
+        if (first) updateMapCoordinate(first.lat, first.lon, 'previewCoord');
+      }
+
+      const VIDEO_EXPORT_WIDTH = 640;
+      const VIDEO_EXPORT_HEIGHT = 360;
+      const VIDEO_EXPORT_FPS = 24;
+      const VIDEO_SUBTITLE_POSITION = {
+        latitude: 'top-left', longitude: 'top-left', lat: 'top-left', lon: 'top-left',
+        height: 'top-left', altitude: 'top-right', alt: 'top-right',
+        datetime: 'top-right', date: 'top-right', time: 'top-right',
+        distance: 'bottom-left', flight_distance: 'bottom-left',
+        speed: 'bottom-right', flight_time: 'bottom-right'
+      };
+
+      function normalizeSubtitleKey(key) {
+        const raw = String(key || '').trim().toLowerCase();
+        if (raw === 'lat') return 'latitude';
+        if (raw === 'lon') return 'longitude';
+        if (raw === 'alt') return 'altitude';
+        return raw;
+      }
+
+      function formatVideoSubtitleValue(key, value) {
+        const normalized = normalizeSubtitleKey(key);
+        const number = Number(value);
+        if (!Number.isFinite(number)) return `${key}: ${value}`;
+        if (normalized === 'latitude') return `Latitude: ${number.toFixed(6)}°`;
+        if (normalized === 'longitude') return `Longitude: ${number.toFixed(6)}°`;
+        if (normalized === 'height') return `Height: ${number.toFixed(2)} m`;
+        if (normalized === 'altitude') return `Altitude: ${number.toFixed(2)} m`;
+        if (normalized === 'distance') return `Distance: ${number.toFixed(2)} m`;
+        if (normalized === 'flight_distance') return `Flight Distance: ${number.toFixed(3)} km`;
+        if (normalized === 'speed') return `Speed: ${(number * 3.6).toFixed(1)} km/h`;
+        if (normalized === 'flight_time') return `Flight Time: ${formatFlightTimeMMSS(value)}`;
+        return `${key}: ${value}`;
+      }
+
+      function collectSelectedSubtitleEntries(metadata, selectedKeys) {
+        const entries = [];
+        const seen = new Set();
+        for (const rawKey of selectedKeys || []) {
+          const key = normalizeSubtitleKey(rawKey);
+          const candidate = metadata && (
+            metadata[key] !== undefined ? metadata[key] :
+            metadata[rawKey] !== undefined ? metadata[rawKey] :
+            metadata[normalizeSubtitleKey(rawKey)] !== undefined ? metadata[normalizeSubtitleKey(rawKey)] :
+            undefined
+          );
+          if (candidate === undefined || candidate === null || String(candidate).trim() === '') continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          entries.push({
+            key,
+            text: formatVideoSubtitleValue(key, candidate),
+            corner: VIDEO_SUBTITLE_POSITION[key] || 'bottom-left'
+          });
+        }
+        return entries;
+      }
+
+      function drawSubtitleOverlay(ctx, width, height, entries) {
+        const grouped = {
+          'top-left': [], 'top-right': [], 'bottom-left': [], 'bottom-right': []
+        };
+        for (const item of entries || []) {
+          grouped[item.corner] = grouped[item.corner] || [];
+          grouped[item.corner].push(item.text);
+        }
+
+        const layout = {
+          'top-left': { x: 18, y: 18, align: 'left' },
+          'top-right': { x: width - 18, y: 18, align: 'right' },
+          'bottom-left': { x: 18, y: height - 18, align: 'left' },
+          'bottom-right': { x: width - 18, y: height - 18, align: 'right' }
+        };
+
+        for (const [corner, lines] of Object.entries(grouped)) {
+          if (!lines.length) continue;
+          const config = layout[corner];
+          const lineHeight = 18;
+          const count = lines.length;
+          let boxTop = config.y;
+          if (corner.includes('bottom')) boxTop = config.y - (count * lineHeight + 12) + 6;
+          ctx.font = '600 14px Arial';
+          ctx.fillStyle = '#f3f8ff';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+          ctx.shadowBlur = 3;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+          ctx.textAlign = config.align;
+          ctx.textBaseline = 'top';
+          let cursorY = boxTop + 6;
+          for (const line of lines) {
+            const x = config.align === 'left' ? config.x + 8 : config.x - 8;
+            ctx.fillText(line, x, cursorY);
+            cursorY += lineHeight;
+          }
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
+      }
+
+      function mercatorY(latitude) {
+        const clampedLatitude = Math.max(-85.05112878, Math.min(85.05112878, Number(latitude)));
+        const sinLatitude = Math.sin(clampedLatitude * Math.PI / 180);
+        return 0.5 - Math.log((1 + sinLatitude) / (1 - sinLatitude)) / (4 * Math.PI);
+      }
+
+      function projectTrackPoint(lat, lon, width, height, viewport) {
+        const worldSize = viewport.worldSize;
+        const x = ((Number(lon) + 180) / 360) * worldSize;
+        const y = mercatorY(lat) * worldSize;
+        return {
+          x: x - viewport.centerX + width / 2,
+          y: y - viewport.centerY + height / 2
+        };
+      }
+
+      function buildVideoTrackProjection(track, width, height) {
+        const validPoints = track.filter(point => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lon)));
+        const projected = validPoints.map(point => ({
+          x: (Number(point.lon) + 180) / 360,
+          y: mercatorY(point.lat)
+        }));
+        const minX = Math.min(...projected.map(point => point.x));
+        const maxX = Math.max(...projected.map(point => point.x));
+        const minY = Math.min(...projected.map(point => point.y));
+        const maxY = Math.max(...projected.map(point => point.y));
+        const availableWidth = Math.max(1, width - 48);
+        const availableHeight = Math.max(1, height - 48);
+        const zoomX = maxX === minX ? 21 : Math.log2(availableWidth / ((maxX - minX) * 256));
+        const zoomY = maxY === minY ? 21 : Math.log2(availableHeight / ((maxY - minY) * 256));
+        const zoom = Math.max(0, Math.min(21, Math.floor(Math.min(zoomX, zoomY))));
+        const worldSize = 256 * (2 ** zoom);
+        const centerX = ((minX + maxX) / 2) * worldSize;
+        const centerY = ((minY + maxY) / 2) * worldSize;
+        const centerLatitude = Math.atan(Math.sinh(Math.PI * (1 - 2 * centerY / worldSize))) * 180 / Math.PI;
+        const centerLongitude = (centerX / worldSize) * 360 - 180;
+        const viewport = { zoom, worldSize, centerX, centerY, centerLatitude, centerLongitude };
+
+        return {
+          ...viewport,
+          pad: 24,
+          fullPath: track.map(point => projectTrackPoint(point.lat, point.lon, width, height, viewport))
+        };
+      }
+
+      function buildGoogleStaticMapUrl(track, width, height, viewport) {
+        const apiKey = window.GOOGLE_MAPS_API_KEY || (window.googleMapsConfig && window.googleMapsConfig.apiKey);
+        if (!apiKey || !Array.isArray(track) || !track.length || !viewport) return null;
+
+        const params = new URLSearchParams({
+          key: apiKey,
+          center: `${viewport.centerLatitude},${viewport.centerLongitude}`,
+          zoom: String(viewport.zoom),
+          size: `${Math.max(320, Math.round(width))}x${Math.max(180, Math.round(height))}`,
+          maptype: 'satellite',
+          scale: '2',
+          format: 'jpg',
+          style: 'feature:all|element:labels|visibility:off'
+        });
+
+        return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+      }
+
+      function loadImageFromUrl(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.referrerPolicy = 'unsafe-url';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Google Maps satellite image could not be loaded. Check the API key restrictions and authorized referrers.'));
+          img.src = url;
+        });
+      }
+
+      async function captureGoogleMapExportBackground(track, width, height) {
+        const apiKey = window.GOOGLE_MAPS_API_KEY || (window.googleMapsConfig && window.googleMapsConfig.apiKey);
+        if (!apiKey) {
+          throw new Error('Google Maps API key is missing. Configure public/config.js before exporting.');
+        }
+        const viewport = buildVideoTrackProjection(track, width, height);
+        const mapUrl = buildGoogleStaticMapUrl(track, width, height, viewport);
+        if (!mapUrl) throw new Error('Could not create a Google Maps satellite request for this GPS track.');
+        try {
+          return { image: await loadImageFromUrl(mapUrl), viewport };
+        } catch (error) {
+          console.warn('Google Maps satellite background unavailable:', error.message);
+          throw error;
+        }
+      }
+
+      function renderVideoFlightFrame(ctx, width, height, track, projectedTrack, timeMs, selectedKeys, mapBackdrop = null) {
+        const pad = projectedTrack.pad;
+
+        ctx.clearRect(0, 0, width, height);
+        if (mapBackdrop && mapBackdrop.image) {
+          ctx.drawImage(mapBackdrop.image, 0, 0, width, height);
+        } else {
+          const bg = ctx.createLinearGradient(0, 0, 0, height);
+          bg.addColorStop(0, '#091b23');
+          bg.addColorStop(0.5, '#06151b');
+          bg.addColorStop(1, '#04080c');
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, width, height);
+
+          ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+          ctx.lineWidth = 1;
+          for (let i = 0; i <= 5; i++) {
+            const y = pad + ((height - pad * 2) / 5) * i;
+            ctx.beginPath();
+            ctx.moveTo(pad, y);
+            ctx.lineTo(width - pad, y);
+            ctx.stroke();
+          }
+          for (let i = 0; i <= 5; i++) {
+            const x = pad + ((width - pad * 2) / 5) * i;
+            ctx.beginPath();
+            ctx.moveTo(x, pad);
+            ctx.lineTo(x, height - pad);
+            ctx.stroke();
+          }
+
+          ctx.beginPath();
+          projectedTrack.fullPath.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          });
+          ctx.strokeStyle = '#2d4654';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        const progressPoints = track.filter(point => point.tMs <= timeMs).map(point => projectTrackPoint(point.lat, point.lon, width, height, projectedTrack));
+        if (progressPoints.length) {
+          ctx.beginPath();
+          progressPoints.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          });
+          ctx.strokeStyle = '#00ffd1';
+          ctx.lineWidth = 4;
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = 'rgba(0,255,209,0.8)';
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        let currentPoint = track[0];
+        for (let i = 0; i < track.length - 1; i++) {
+          const current = track[i];
+          const next = track[i + 1];
+          if (timeMs >= current.tMs && timeMs <= next.tMs) {
+            const ratio = next.tMs === current.tMs ? 0 : (timeMs - current.tMs) / (next.tMs - current.tMs);
+            currentPoint = {
+              lat: current.lat + (next.lat - current.lat) * ratio,
+              lon: current.lon + (next.lon - current.lon) * ratio,
+              extra: current.extra || {}
+            };
+            break;
+          }
+        }
+
+        const dronePoint = projectTrackPoint(currentPoint.lat, currentPoint.lon, width, height, projectedTrack);
+        ctx.beginPath();
+        ctx.arc(dronePoint.x, dronePoint.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff9b44';
+        ctx.fill();
+
+        const entries = collectSelectedSubtitleEntries(currentPoint.extra || {}, selectedKeys || []);
+        drawSubtitleOverlay(ctx, width, height, entries);
+      }
+
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const existing = document.querySelector(`script[data-ffmpeg-src="${src}"]`);
+          if (existing) {
+            if (existing.dataset.loaded === 'true') {
+              resolve();
+              return;
+            }
+            existing.addEventListener('load', () => resolve(), { once: true });
+            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+            return;
+          }
+
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          script.dataset.ffmpegSrc = src;
+          script.onload = () => {
+            script.dataset.loaded = 'true';
+            resolve();
+          };
+          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          document.head.appendChild(script);
+        });
+      }
+
+      async function initFfmpegEngine() {
+        if (location.protocol === 'file:') {
+          throw new Error('Video export requires the app to be served over http:// or https:// because ffmpeg worker files are blocked on file:// pages.');
+        }
+
+        const ffmpegBase = new URL('./vendor/ffmpeg/', window.location.href).toString();
+
+        if (!window.FFmpegWASM) {
+          await loadScript(new URL('./vendor/ffmpeg/ffmpeg.js', window.location.href).toString());
+        }
+
+        if (!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg) {
+          throw new Error('FFmpeg WASM library did not initialize.');
+        }
+
+        const ffmpeg = new window.FFmpegWASM.FFmpeg();
+        await ffmpeg.load({
+          coreURL: new URL('./ffmpeg-core.js', ffmpegBase).toString(),
+          wasmURL: new URL('./ffmpeg-core.wasm', ffmpegBase).toString(),
+          workerURL: new URL('./ffmpeg-core.worker.js', ffmpegBase).toString()
+        });
+
+        ffmpeg.on('log', ({ message }) => {
+          if (message && /time=/.test(message)) {
+            console.log('[ffmpeg]', message);
+          }
+        });
+
+        return ffmpeg;
+      }
+
+      async function exportFlightVideo() {
+        if (!gpsTrack || gpsTrack.length < 2) {
+          status.innerText = 'No GPS track available for video export.';
+          return;
+        }
+
+        const selectedKeys = Array.from(document.querySelectorAll('#keyContainer input:checked')).map(cb => cb.value);
+        if (!selectedKeys.length) {
+          status.innerText = 'Select at least one field before exporting video.';
+          return;
+        }
+
+        const startMs = gpsTrack[0].tMs;
+        const endMs = gpsTrack[gpsTrack.length - 1].tMs;
+        const durationMs = Math.max(1200, endMs - startMs);
+        const totalFrames = Math.max(1, Math.ceil((durationMs / 1000) * VIDEO_EXPORT_FPS));
+        const yieldToBrowser = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+        try {
+          status.innerText = 'Loading ffmpeg export engine...';
+          const ffmpeg = await initFfmpegEngine();
+
+          const canvas = document.createElement('canvas');
+          canvas.width = VIDEO_EXPORT_WIDTH;
+          canvas.height = VIDEO_EXPORT_HEIGHT;
+          const ctx = canvas.getContext('2d');
+          const projectedTrack = buildVideoTrackProjection(gpsTrack, canvas.width, canvas.height);
+          const framePadding = Math.max(5, String(totalFrames).length);
+          const mapBackdrop = await captureGoogleMapExportBackground(gpsTrack, canvas.width, canvas.height);
+          if (!mapBackdrop) {
+            throw new Error('Google Maps satellite background is unavailable. Check the API key, Static Maps API access, and authorized referrer. Export cancelled instead of using a dark fallback.');
+          }
+
+          status.innerText = `Rendering export frames: 0/${totalFrames}`;
+          await yieldToBrowser();
+
+          for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+            const progress = totalFrames === 1 ? 0 : frameIndex / (totalFrames - 1);
+            const timeMs = startMs + (durationMs * progress);
+            renderVideoFlightFrame(ctx, canvas.width, canvas.height, gpsTrack, projectedTrack, timeMs, selectedKeys, mapBackdrop);
+
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+            const fileName = `frame_${String(frameIndex).padStart(framePadding, '0')}.png`;
+            const arrayBuffer = await blob.arrayBuffer();
+            await ffmpeg.writeFile(fileName, new Uint8Array(arrayBuffer));
+
+            if ((frameIndex + 1) % 12 === 0 || frameIndex === totalFrames - 1) {
+              status.innerText = `Rendering export frames: ${frameIndex + 1}/${totalFrames}`;
+              await yieldToBrowser();
+            }
+          }
+
+          const outputName = 'flight-output.mp4';
+          status.innerText = 'Encoding MP4 from rendered frames...';
+          await yieldToBrowser();
+          await ffmpeg.exec([
+            '-framerate', String(VIDEO_EXPORT_FPS),
+            '-pattern_type', 'sequence',
+            '-i', `frame_%0${framePadding}d.png`,
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'veryfast',
+            '-crf', '28',
+            '-movflags', '+faststart',
+            outputName
+          ]);
+
+          const data = await ffmpeg.readFile(outputName);
+          const outputBlob = new Blob([data.buffer || data], { type: 'video/mp4' });
+          const href = URL.createObjectURL(outputBlob);
+          const a = document.createElement('a');
+          const name = selectedFiles[0] && selectedFiles[0].name ? selectedFiles[0].name.replace(/\.[^/.]+$/, '') : 'flight';
+          a.href = href;
+          a.download = `${name}-flight.mp4`;
+          a.click();
+          URL.revokeObjectURL(href);
+          status.innerText = `Export video complete: ${a.download}`;
+        } catch (error) {
+          console.error('Video export failed:', error);
+          if (String(error && error.message || error).includes('file://')) {
+            status.innerText = 'Video export requires the app to be served over http:// or https://. Open it through a local web server and try again.';
+            return;
+          }
+          status.innerText = `Video export failed: ${error.message || 'browser encoding engine could not initialize.'}`;
+        }
+      }
+
+      function closeFullScreenAnimation() {
+        const overlay = document.getElementById('fullscreenOverlay');
+        if (!overlay) return;
+        overlay.classList.remove('is-visible');
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        if (fullscreenAnimHandle && fullscreenAnimHandle.pause) fullscreenAnimHandle.pause();
+      }
+
+      let selectedFiles = [];
+      let mergedBlocks = [];
+      let gpsTrack = [];
+      let mapObj = null;
+      let animHandle = null;
+      let telemetrySource = 'generic';
+      let isMapPlaying = false;
+
+      function setPlayPauseUi(playing) {
+        isMapPlaying = Boolean(playing);
+        if (!playBtn) return;
+        playBtn.classList.toggle('is-playing', isMapPlaying);
+        playBtn.title = isMapPlaying ? 'Pause' : 'Play';
+        playBtn.setAttribute('aria-label', isMapPlaying ? 'Pause' : 'Play');
+      }
+
+      function syncTimezoneControlState() {
+        if (!timezoneOffset) return;
+        timezoneOffset.disabled = !adjustTimezone.checked;
+      }
+
+      adjustTimezone.addEventListener('change', syncTimezoneControlState);
+      syncTimezoneControlState();
+
+      function syncControlsForSelectedFile() {
+        const scaleControl = document.getElementById('scaleControl');
+        if (!scaleControl) return;
+
+        const selectedFile = selectedFiles[0] && selectedFiles[0].file;
+        const fileName = selectedFile ? selectedFile.name || '' : '';
+        const isLowercaseSrt = /\.srt$/.test(fileName);
+        const isUppercaseSrt = /\.SRT$/.test(fileName);
+
+        if (scaleInput) {
+          if (isLowercaseSrt) {
+            scaleInput.value = '1';
+          } else {
+            scaleInput.value = '10';
+          }
+        }
+
+        const isTxt = !selectedFile || !/\.srt$/i.test(fileName);
+        scaleControl.style.display = isTxt ? 'none' : 'block';
+
+        if (isUppercaseSrt && scaleInput) {
+          scaleInput.value = '10';
+        }
+      }
+
+      uploadBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        fileInput.click();
+      });
+
+      function renderFileList() {
+        fileList.replaceChildren(...selectedFiles.map((f, i) => {
+          const chip = document.createElement('div');
+          chip.className = 'file-chip';
+          const name = document.createElement('span');
+          name.textContent = selectedFiles.length > 1 ? `${i + 1}. ${f.name}` : f.name;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'file-remove';
+          remove.setAttribute('aria-label', `Remove ${f.name}`);
+          remove.textContent = '×';
+          remove.addEventListener('click', () => {
+            selectedFiles.splice(i, 1);
+            renderFileList();
+            syncControlsForSelectedFile();
+          });
+          chip.append(name, remove);
+          return chip;
+        }));
+      }
+
+      fileInput.addEventListener('change', function (e) {
+        const known = new Set(selectedFiles.map(f => `${f.name}|${f.file.size}`));
+        const added = Array.from(e.target.files)
+          .filter(f => !known.has(`${f.name}|${f.size}`))
+          .map(f => ({ name: f.name, file: f }));
+        // Same order mergeFileTexts uses (ordering: 'name')
+        selectedFiles = selectedFiles.concat(added).sort((a, b) => a.name.localeCompare(b.name));
+        fileInput.value = '';
+        renderFileList();
+        syncControlsForSelectedFile();
+      });
+
+      ['dragenter', 'dragover'].forEach(type => uploadBtn.addEventListener(type, e => {
+        e.preventDefault();
+        uploadBtn.classList.add('is-dragover');
+      }));
+      ['dragleave', 'drop'].forEach(type => uploadBtn.addEventListener(type, e => {
+        e.preventDefault();
+        uploadBtn.classList.remove('is-dragover');
+      }));
+      uploadBtn.addEventListener('drop', e => {
+        if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+      });
+
+      async function readAllFiles() {
+        const arr = [];
+        for (const sf of selectedFiles) {
+          const text = await sf.file.text();
+          arr.push({ name: sf.name, text });
+        }
+        return arr;
+      }
+
+      async function uploadDjiFlightRecord(file) {
+        const form = new FormData();
+        form.append('file', file);
+
+        const apiBaseUrl = 'https://srt-managers-dji-parser-334697705514.asia-southeast1.run.app';
+        const response = await fetch(`${apiBaseUrl}/api/flight-record/parse`, {
+          method: 'POST',
+          body: form
+        });
+
+        const data = await response.json();
+        if (!data.ok) {
+          throw new Error(data.error || 'Parse failed');
+        }
+
+        return data.points || [];
+      }
+
+      function normalizeBackendTrack(points) {
+        if (!Array.isArray(points)) return [];
+        return points
+          .filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)))
+          .map(p => ({
+            tMs: Number(p.tMs) || 0,
+            lat: Number(p.lat),
+            lon: Number(p.lon),
+            extra: {
+              ...p,
+              lat: Number(p.lat),
+              lon: Number(p.lon)
+            }
+          }))
+          .sort((a, b) => a.tMs - b.tMs);
+      }
+
+      function createBlocksFromTrack(track) {
+        if (!Array.isArray(track) || !track.length) return [];
+
+        const blocks = [];
+        for (let i = 0; i < track.length; i++) {
+          const point = track[i] || {};
+          const startMs = Number(point.tMs) || 0;
+          const prevMs = i > 0 ? Number(track[i - 1].tMs) || startMs : startMs;
+          const nextPoint = track[i + 1] || null;
+          const nextMs = nextPoint ? (Number(nextPoint.tMs) || startMs) : startMs + Math.max(20, startMs - prevMs || 20);
+          const endMs = nextMs > startMs ? nextMs : startMs + Math.max(20, startMs - prevMs || 20);
+          const meta = {};
+
+          const pointEntries = point && typeof point === 'object' ? point : {};
+          Object.keys(pointEntries).forEach(key => {
+            if (key === 'extra') return;
+            const value = pointEntries[key];
+            if (value !== undefined && value !== null && value !== '') meta[key] = value;
+          });
+
+          const extra = point.extra && typeof point.extra === 'object' ? point.extra : {};
+          Object.keys(extra).forEach(key => {
+            const value = extra[key];
+            if (value !== undefined && value !== null && value !== '') meta[key] = value;
+          });
+
+          if (Number.isFinite(Number(meta.lat))) meta.lat = Number(meta.lat);
+          if (Number.isFinite(Number(meta.lon))) meta.lon = Number(meta.lon);
+          if (Number.isFinite(Number(meta.alt))) meta.alt = Number(meta.alt);
+          if (Number.isFinite(Number(meta.height))) {
+            meta.height = Number(meta.height);
+          } else if (Number.isFinite(Number(meta.alt))) {
+            // Fallback for older backend responses that don't provide a separate height field
+            meta.height = Number(meta.alt);
+          }
+          if (Number.isFinite(Number(meta.speed))) meta.speed = Number(meta.speed);
+          if (Number.isFinite(Number(meta.heading))) meta.heading = Number(meta.heading);
+
+          const preferredOrder = ['lat', 'lon', 'height', 'alt', 'speed', 'heading', 'datetime', 'index', 'tMs'];
+          const renderEntries = preferredOrder
+            .filter(key => meta[key] !== undefined)
+            .map(key => {
+              const value = Number(meta[key]);
+              const formatted = Number.isFinite(value)
+                ? (key === 'lat' || key === 'lon' ? value.toFixed(6) : value.toFixed(2))
+                : meta[key];
+              return `${key}: ${formatted}`;
+            });
+
+          const extraEntries = Object.keys(meta)
+            .filter(key => !preferredOrder.includes(key) && key !== 'extra')
+            .map(key => {
+              const rawValue = meta[key];
+              const numericValue = Number(rawValue);
+              const formatted = Number.isFinite(numericValue) && rawValue !== '' ? numericValue.toFixed(2) : rawValue;
+              return `${key}: ${formatted}`;
+            });
+
+          const rawText = [...renderEntries, ...extraEntries].join('\n') || `lat: ${meta.lat ?? 'n/a'}\nlon: ${meta.lon ?? 'n/a'}`;
+
+          blocks.push({
+            id: i + 1,
+            startMs,
+            endMs,
+            rawText,
+            metadata: meta,
+            renderText: rawText
+          });
+        }
+        return blocks;
+      }
+
+      processBtn.addEventListener('click', async function () {
+        if (!selectedFiles.length) {
+          alert('โปรดเลือกไฟล์ก่อน');
+          return;
+        }
+
+        const selectedFile = selectedFiles[0].file;
+        status.innerText = 'Processing...';
+
+        try {
+          const fileName = selectedFile.name || '';
+          syncControlsForSelectedFile(); // This function already checks the extension
+
+          if (/\.srt$/i.test(fileName)) {
+            const files = await readAllFiles();
+            const policy = mergePolicy.value;
+            const opts = { ordering: 'name', policy: policy, gapMs: Number(gapMs.value) || 0 };
+            mergedBlocks = mergeFileTexts(files, opts);
+
+            const discoveredKeys = new Set();
+            for (const b of mergedBlocks) {
+              b.metadata = extractMetadataFromText(b.rawText);
+              if (b.metadata) {
+                Object.keys(b.metadata).forEach(k => discoveredKeys.add(String(k).toLowerCase()));
+              }
+            }
+            if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
+            if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
+
+            // Classify telemetry source based on filename first, then content if generic
+            const fileName = selectedFiles[0].name.toUpperCase();
+            if (fileName.includes('DJI_') && fileName.endsWith('.SRT')) {
+              telemetrySource = 'drone-camera';
+            } else if (fileName.includes('DJI') && fileName.endsWith('.SRT')) {
+              telemetrySource = 'goggles-telemetry';
+            } else {
+              telemetrySource = classifyTelemetrySource(mergedBlocks); // Fallback to content-based classification
+            }
+
+            // Correct altitude for drone-camera source, as per user request, but leave height
+            // for the UI controls to handle. This avoids double-correction.
+            if (telemetrySource === 'drone-camera') {
+              for (const block of mergedBlocks) {
+                if (block.metadata && block.metadata.altitude !== undefined) {
+                  const originalAltitude = Number(block.metadata.altitude);
+                  if (Number.isFinite(originalAltitude)) {
+                    block.metadata.altitude = originalAltitude * 10;
+                    block.metadata.altitude = Number(block.metadata.altitude.toFixed(2));
+                  }
+                }
+              }
+
+              if (computeFlightTimeFromBlocks(mergedBlocks)) {
+                discoveredKeys.add('flight_time');
+              }
+            }
+
+            if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
+              applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
+            }
+
+            const scale = Number(scaleInput.value) || 1;
+            const auto = offsetType.value === 'auto';
+            const base = auto ? null : (Number(manualOffset.value) || 0);
+
+            // Distance from first GPS fix + cumulative flight distance, when lat/lon metadata is present
+            const hasDistanceMetrics = computeDistanceMetrics(mergedBlocks);
+            if (hasDistanceMetrics) {
+              discoveredKeys.add('distance');
+              discoveredKeys.add('flight_distance');
+            }
+
+            applyAltitudeCorrection(mergedBlocks, { scale, baseOffset: base, auto });
+
+            keyContainer.innerHTML = '';
+            discoveredKeys.forEach(k => {
+              const lab = document.createElement('label');
+              lab.className = 'k';
+              const checkedByDefault = ['latitude', 'longitude', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance', 'flight_time', 'speed'].includes(k);
+              lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
+              keyContainer.appendChild(lab);
+            });
+
+            filterCard.style.display = 'block';
+
+            gpsTrack = extractGPSTrack(mergedBlocks);
+          } else if (/\.txt$/i.test(fileName)) {
+            status.innerText = 'Uploading DJI flight record to backend...';
+            const points = await uploadDjiFlightRecord(selectedFile);
+            gpsTrack = normalizeBackendTrack(points);
+            mergedBlocks = createBlocksFromTrack(gpsTrack);
+            telemetrySource = 'drone-flight-record';
+
+            const discoveredKeys = new Set();
+            for (const b of mergedBlocks) {
+              b.metadata = b.metadata || {};
+              Object.keys(b.metadata).forEach(k => discoveredKeys.add(String(k).toLowerCase()));
+            }
+            if (discoveredKeys.has('latitude')) discoveredKeys.delete('lat');
+            if (discoveredKeys.has('longitude')) discoveredKeys.delete('lon');
+
+            if (adjustTimezone.checked && shouldApplyTimeAdjustmentForSource(telemetrySource)) {
+              applyTimezoneOffsetToBlocks(mergedBlocks, Number(timezoneOffset.value) || 0);
+            }
+
+            const auto = offsetType.value === 'auto';
+            const base = auto ? null : (Number(manualOffset.value) || 0);
+            applyAltitudeCorrection(mergedBlocks, { scale: 1, baseOffset: base, auto });
+
+            keyContainer.innerHTML = '';
+            discoveredKeys.forEach(k => {
+              const lab = document.createElement('label');
+              lab.className = 'k';
+              const checkedByDefault = ['lat', 'lon', 'height', 'alt', 'altitude', 'date', 'time', 'datetime', 'distance', 'flight_distance', 'flight_time', 'speed'].includes(k);
+              lab.innerHTML = `<input type="checkbox" value="${k}"${checkedByDefault ? ' checked' : ''}> ${k}`;
+              keyContainer.appendChild(lab);
+            });
+
+            filterCard.style.display = 'block';
+            status.innerText = `Received ${gpsTrack.length} GPS points from backend. Choose fields to export as SRT.`;
+          } else {
+            alert(`Unsupported file type: ${fileName}. Please select a .srt or .txt file.`);
+            status.innerText = `Unsupported file type: ${fileName}.`;
+          }
+
+          if (gpsTrack.length > 0) {
+            await window.googleMapsReady;
+            document.getElementById('telemetryCard').style.display = 'none';
+            mapCard.style.display = 'block';
+            const mapStage = document.getElementById('map');
+            const preview = document.getElementById('flightPreview');
+            if (mapStage) mapStage.style.display = 'none';
+            if (preview) preview.style.display = 'block';
+            const controlBar = document.querySelector('.map-controls');
+            if (controlBar) controlBar.style.display = 'none';
+            if (!mapObj) mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+            mapObj.markerMode = resolveMarkerMode(telemetrySource, gpsTrack);
+            showTrackOnMap(mapObj, gpsTrack);
+            renderFlightPathPreview(gpsTrack);
+            updateMapCoordinate(gpsTrack[0].lat, gpsTrack[0].lon, 'previewCoord');
+            if (animHandle && animHandle.stop) animHandle.stop();
+            animHandle = animateOnMap(mapObj, gpsTrack, {
+              speed: 1,
+              onPlayStateChange: setPlayPauseUi,
+              onTick: function (s) {
+                const percent = ((s.t - s.start) / (s.end - s.start)) * 100;
+                const slider = document.getElementById('timeSlider');
+                const label = document.getElementById('timeLabel');
+                if (slider) slider.value = isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+                if (label) label.innerText = formatTime(s.t);
+                try { status.innerText = 'Playing: ' + formatTime(s.t); } catch (e) {}
+              }
+            });
+            try {
+              const p = document.getElementById('playBtn'); if (p) p.disabled = false;
+              const z = document.getElementById('pauseBtn'); if (z) z.disabled = true;
+              const rs = document.getElementById('rewindBtn'); if (rs) rs.disabled = false;
+              const fsbtn = document.getElementById('ffBtn'); if (fsbtn) fsbtn.disabled = false;
+              const sb = document.getElementById('stopBtn'); if (sb) sb.disabled = false;
+              const slider = document.getElementById('timeSlider'); if (slider) { slider.disabled = false; slider.value = 0; }
+              setPlayPauseUi(false);
+            } catch (e) { console.warn('enable controls failed', e); }
+          } else {
+            mapCard.style.display = 'none';
+            if (telemetrySource === 'goggles-telemetry') {
+              renderGogglesTelemetry(mergedBlocks);
+              status.innerText = `Processed ${mergedBlocks.length} goggles telemetry cues. Map disabled because this recording has no GPS coordinates.`;
+            } else {
+              document.getElementById('telemetryCard').style.display = 'none';
+              status.innerText = `Processed ${mergedBlocks.length} blocks. No GPS coordinates found.`;
+            }
+          }
+        } catch (err) {
+          console.error('Process failed:', err);
+          status.innerText = err.message || 'Failed to process file';
+        }
+      });
+
+      selectAll.addEventListener('click', function () {
+        document.querySelectorAll('#keyContainer input').forEach(cb => cb.checked = true);
+      });
+
+      deselectAll.addEventListener('click', function () {
+        document.querySelectorAll('#keyContainer input').forEach(cb => cb.checked = false);
+      });
+
+      downloadBtn.addEventListener('click', function () {
+        const checked = Array.from(document.querySelectorAll('#keyContainer input:checked')).map(cb => cb.value);
+        filterMetadata(mergedBlocks, checked);
+        const finalSrt = blocksToSrt(mergedBlocks);
+        const blob = new Blob([finalSrt], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        const name = selectedFiles[0] && selectedFiles[0].name ? selectedFiles[0].name.replace(/\.[^/.]+$/, '') : 'merged';
+        a.href = URL.createObjectURL(blob);
+        a.download = `${name}.SRT`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        status.innerText = `ดาวน์โหลด SRT เสร็จแล้ว: ${a.download}`;
+      });
+
+      downloadAssBtn.addEventListener('click', function () {
+        const checked = Array.from(document.querySelectorAll('#keyContainer input:checked')).map(cb => cb.value);
+        filterMetadata(mergedBlocks, checked);
+        const finalAss = blocksToAss(mergedBlocks);
+        const blob = new Blob([finalAss], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        const name = selectedFiles[0] && selectedFiles[0].name ? selectedFiles[0].name.replace(/\.[^/.]+$/, '') : 'merged';
+        a.href = URL.createObjectURL(blob);
+        a.download = `${name}.ass`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        status.innerText = `ดาวน์โหลด ASS เสร็จแล้ว: ${a.download}`;
+      });
+
+      if (downloadVideoBtn) {
+        downloadVideoBtn.addEventListener('click', exportFlightVideo);
+      }
+
+      playBtn.addEventListener('click', async function () {
+        try {
+          console.log('play clicked, animHandle=', !!animHandle);
+          if (!animHandle) {
+            status.innerText = 'Starting animation...';
+            console.log('animHandle missing — gpsTrack length=', gpsTrack && gpsTrack.length, 'mapObj=', !!mapObj);
+            if (!gpsTrack || gpsTrack.length < 2) { status.innerText = 'No GPS track available'; return; }
+            if (!mapObj) {
+              try {
+                await window.googleMapsReady;
+                mapObj = createGoogleMap('map', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+                mapObj.markerMode = resolveMarkerMode(telemetrySource, gpsTrack);
+                showTrackOnMap(mapObj, gpsTrack);
+              } catch (e) {
+                console.error('failed to create map in play', e);
+                mapObj = { marker: { setPosition: function () {} }, map: null };
+              }
+            }
+            if (mapObj && gpsTrack && gpsTrack.length > 1) {
+              animHandle = animateOnMap(mapObj, gpsTrack, {
+                speed: 1,
+                onPlayStateChange: setPlayPauseUi,
+                onTick: function (s) {
+                  const slider = document.getElementById('timeSlider');
+                  const label = document.getElementById('timeLabel');
+                  if (slider) slider.value = isFinite(((s.t - s.start) / (s.end - s.start)) * 100) ? Math.max(0, Math.min(100, ((s.t - s.start) / (s.end - s.start)) * 100)) : 0;
+                  if (label) label.innerText = formatTime(s.t);
+                  try { status.innerText = 'Playing: ' + formatTime(s.t); } catch (e) {}
+                }
+              });
+            }
+          }
+          if (!animHandle) { status.innerText = 'No animator available'; return; }
+          if (isMapPlaying) {
+            if (typeof animHandle.pause === 'function') animHandle.pause();
+            status.innerText = 'Paused';
+          } else {
+            if (typeof animHandle.play === 'function') animHandle.play();
+            status.innerText = 'Playing';
+          }
+        } catch (e) { console.error('play handler error', e); status.innerText = 'Play failed'; }
+      });
+
+      const flightPreview = document.getElementById('flightPreview');
+      const collapseFullscreenBtn = document.getElementById('collapseFullscreenBtn');
+      const fsRewindBtn = document.getElementById('fsRewindBtn');
+      const fsForwardBtn = document.getElementById('fsForwardBtn');
+      const fsStopBtn = document.getElementById('fsStopBtn');
+      const fsPlayBtn = document.getElementById('fsPlayBtn');
+      const fsShareBtn = document.getElementById('fsShareBtn');
+      const fullscreenSlider = document.getElementById('fullscreenSlider');
+      const fullscreenOverlay = document.getElementById('fullscreenOverlay');
+
+      if (flightPreview) {
+        flightPreview.addEventListener('click', async function () {
+          if (!gpsTrack || !gpsTrack.length) return;
+          const overlay = document.getElementById('fullscreenOverlay');
+          if (!overlay) return;
+          overlay.classList.add('is-visible');
+          overlay.setAttribute('aria-hidden', 'false');
+          document.body.style.overflow = 'hidden';
+          await window.googleMapsReady;
+          if (!fullscreenMapObj) {
+            fullscreenMapObj = createGoogleMap('fullscreenMap', { center: [gpsTrack[0].lat, gpsTrack[0].lon], zoom: 15 });
+            fullscreenMapObj.markerMode = resolveMarkerMode(telemetrySource, gpsTrack);
+          }
+          showTrackOnMap(fullscreenMapObj, gpsTrack);
+          updateMapCoordinate(gpsTrack[0].lat, gpsTrack[0].lon, 'fullscreenCoordinates');
+          if (fullscreenAnimHandle && fullscreenAnimHandle.stop) fullscreenAnimHandle.stop();
+          fullscreenAnimHandle = animateOnMap(fullscreenMapObj, gpsTrack, {
+            speed: 1,
+            onPlayStateChange: function (playing) {
+              if (fsPlayBtn) {
+                fsPlayBtn.classList.toggle('is-playing', playing);
+                fsPlayBtn.innerHTML = playing
+                  ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>'
+                  : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7V5z"/></svg>';
+                fsPlayBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+              }
+            },
+            onTick: function (s) {
+              const ratio = (s.end === s.start) ? 0 : ((s.t - s.start) / (s.end - s.start));
+              const percent = isFinite(ratio) ? Math.max(0, Math.min(100, ratio * 100)) : 0;
+              if (fullscreenSlider) fullscreenSlider.value = percent;
+              const label = document.getElementById('fullscreenTimeLabel');
+              if (label) label.textContent = formatTime(s.t);
+              updateMapCoordinate(s.lat, s.lon, 'fullscreenCoordinates');
+            }
+          });
+        });
+        flightPreview.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            flightPreview.click();
+          }
+        });
+      }
+
+      if (collapseFullscreenBtn) collapseFullscreenBtn.addEventListener('click', closeFullScreenAnimation);
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && fullscreenOverlay && fullscreenOverlay.classList.contains('is-visible')) {
+          closeFullScreenAnimation();
+        }
+      });
+
+      if (fsRewindBtn) fsRewindBtn.addEventListener('click', function () { if (fullscreenAnimHandle) fullscreenAnimHandle.seekBy(-5000); });
+      if (fsForwardBtn) fsForwardBtn.addEventListener('click', function () { if (fullscreenAnimHandle) fullscreenAnimHandle.seekBy(5000); });
+      if (fsStopBtn) fsStopBtn.addEventListener('click', function () {
+        if (fullscreenAnimHandle) fullscreenAnimHandle.stop();
+        if (fsPlayBtn) {
+          fsPlayBtn.classList.remove('is-playing');
+          fsPlayBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7V5z"/></svg>';
+          fsPlayBtn.setAttribute('aria-label', 'Play');
+        }
+      });
+      if (fsPlayBtn) fsPlayBtn.addEventListener('click', function () {
+        if (!fullscreenAnimHandle) {
+          flightPreview && flightPreview.click();
+          return;
+        }
+        if (fsPlayBtn.classList.contains('is-playing')) {
+          fullscreenAnimHandle.pause();
+        } else {
+          fullscreenAnimHandle.play();
+        }
+      });
+      if (fsShareBtn) fsShareBtn.addEventListener('click', async function () {
+        const location = currentMapLocation || (gpsTrack[0] && { lat: gpsTrack[0].lat, lon: gpsTrack[0].lon });
+        if (!location) {
+          status.innerText = 'No current GPS location available';
+          return;
+        }
+
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat.toFixed(6)},${location.lon.toFixed(6)}`;
+        const shareData = {
+          title: 'Drone location',
+          text: `Drone location at ${location.lat.toFixed(6)}, ${location.lon.toFixed(6)}`,
+          url: mapsUrl
+        };
+
+        try {
+          if (navigator.share) {
+            await navigator.share(shareData);
+            status.innerText = 'Location shared';
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(mapsUrl);
+            status.innerText = 'Location link copied';
+          } else {
+            window.prompt('Copy this location link:', mapsUrl);
+          }
+        } catch (error) {
+          if (error && error.name !== 'AbortError') status.innerText = 'Could not share location';
+        }
+      });
+      if (fullscreenSlider) fullscreenSlider.addEventListener('input', function (e) {
+        if (!fullscreenAnimHandle || !gpsTrack || gpsTrack.length < 2) return;
+        const pct = Number(e.target.value) / 100;
+        const start = gpsTrack[0].tMs;
+        const end = gpsTrack[gpsTrack.length - 1].tMs;
+        const t = start + pct * (end - start);
+        fullscreenAnimHandle.seekTo(t);
+      });
+
+      // rewind / forward / stop controls
+      const rewindBtn = document.getElementById('rewindBtn');
+      const ffBtn = document.getElementById('ffBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const timeSlider = document.getElementById('timeSlider');
+      const shareLocationBtn = document.getElementById('shareLocationBtn');
+
+      if (rewindBtn) rewindBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(-5000); });
+      if (ffBtn) ffBtn.addEventListener('click', function () { if (animHandle) animHandle.seekBy(5000); });
+      if (stopBtn) stopBtn.addEventListener('click', function () {
+        if (animHandle) animHandle.stop();
+        setPlayPauseUi(false);
+        status.innerText = 'Stopped';
+      });
+      if (shareLocationBtn) shareLocationBtn.addEventListener('click', async function () {
+        const location = currentMapLocation || (gpsTrack[0] && { lat: gpsTrack[0].lat, lon: gpsTrack[0].lon });
+        if (!location) {
+          status.innerText = 'No current GPS location available';
+          return;
+        }
+
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat.toFixed(6)},${location.lon.toFixed(6)}`;
+        const shareData = {
+          title: 'Drone location',
+          text: `Drone location at ${location.lat.toFixed(6)}, ${location.lon.toFixed(6)}`,
+          url: mapsUrl
+        };
+
+        try {
+          if (navigator.share) {
+            await navigator.share(shareData);
+            status.innerText = 'Location shared';
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(mapsUrl);
+            status.innerText = 'Location link copied';
+          } else {
+            window.prompt('Copy this location link:', mapsUrl);
+          }
+        } catch (error) {
+          if (error && error.name !== 'AbortError') status.innerText = 'Could not share location';
+        }
+      });
+      if (timeSlider) timeSlider.addEventListener('input', function (e) {
+        if (!animHandle || !gpsTrack || gpsTrack.length < 2) return;
+        const pct = Number(e.target.value) / 100;
+        const start = gpsTrack[0].tMs;
+        const end = gpsTrack[gpsTrack.length - 1].tMs;
+        const t = start + pct * (end - start);
+        animHandle.seekTo(t);
+      });
+      
+    })();
+  </script>
+
+</body>
+</html>
