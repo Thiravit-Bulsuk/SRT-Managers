@@ -4,6 +4,10 @@ A browser-based tool for working with DJI subtitle files and flight records. Mer
 
 **Web app:** https://srt-managers-web-334697705514.asia-southeast1.run.app/
 
+**Source code repository:** https://github.com/Thiravit-Bulsuk/SRT-Managers
+
+<img src="docs/repo-qr.png" alt="QR code repository" width="180">
+
 ## Features
 
 - Parse one or more `.srt` files and merge them by concatenating, preserving timestamps, or inserting a gap.
