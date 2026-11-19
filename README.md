@@ -84,7 +84,7 @@ gcloud run deploy srt-managers-dji-parser \
   --allow-unauthenticated \
   --memory=1Gi \
   --cpu=1 \
-  --max=3 \
+  --max=20 \
   --min=0 \
   --timeout=300
 ```
@@ -128,7 +128,7 @@ gcloud run deploy srt-managers-web \
   --port=8080 \
   --memory=256Mi \
   --cpu=1 \
-  --max=3 \
+  --max=20 \
   --min=0
 ```
 
@@ -222,7 +222,7 @@ gcloud run deploy srt-managers-dji-parser \
   --allow-unauthenticated \
   --memory=1Gi \
   --cpu=1 \
-  --max=3 \
+  --max=20 \
   --min=0 \
   --timeout=300
 ```
@@ -266,7 +266,7 @@ gcloud run deploy srt-managers-web \
   --port=8080 \
   --memory=256Mi \
   --cpu=1 \
-  --max=3 \
+  --max=20 \
   --min=0
 ```
 
